@@ -173,7 +173,47 @@ pub(super) fn describe(log: &ChangeLog, branch: &str, now: i64) -> String {
 pub(in crate::control::client) fn change(command: ChangeCommand) -> crate::Result<Output> {
     match command {
         ChangeCommand::Log { commit } => log(&here()?, commit.as_deref()),
+        ChangeCommand::Diff { old, new } => diff(&here()?, &old, new.as_deref()),
     }
+}
+
+/// The range-diff from version `old` to `new`, or to what `old` became.
+fn diff(checkout: &Checkout, old: &str, new: Option<&str>) -> crate::Result<Output> {
+    let history = evolution::history(checkout, now(), direct::here_with_input)
+        .map_err(rejected)?
+        .ok_or_else(|| untracked(checkout))?;
+    let old = history.resolve(old).map_err(rejected)?;
+    let new = match new {
+        Some(new) => history.resolve(new).map_err(rejected)?,
+        None => history.current(old).ok_or_else(|| {
+            crate::Error::from(crate::control::Error::Rejected {
+                code: ErrorCode::NotFound,
+                message: format!(
+                    "{} was dropped from {}; name the version to compare it with",
+                    short(old),
+                    checkout.branch
+                ),
+            })
+        })?,
+    };
+    let text = evolution::diff(checkout, old, new, direct::here_with_input).map_err(rejected)?;
+    let json = serde_json::json!({ "old": old, "new": new, "range_diff": text });
+    let mut output = Output::data(text.trim_end().to_owned(), &json)?;
+    if output.text.is_empty() {
+        output.text = "No changes".into();
+    }
+    Ok(output)
+}
+
+fn untracked(checkout: &Checkout) -> crate::Error {
+    crate::control::Error::Rejected {
+        code: ErrorCode::InvalidRequest,
+        message: format!(
+            "{} is the default branch, or has none to leave, so its commits are not tracked",
+            checkout.branch
+        ),
+    }
+    .into()
 }
 
 fn log(checkout: &Checkout, prefix: Option<&str>) -> crate::Result<Output> {

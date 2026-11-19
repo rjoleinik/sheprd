@@ -26,7 +26,7 @@ const LABEL_LIMIT: usize = 200;
 /// Exit statuses the scripts use for refusals the user can act on.
 const EXIT_NO_CHECKOUT: i32 = 65;
 const EXIT_UNBORN: i32 = 66;
-const EXIT_MISSING: i32 = 67;
+pub(crate) const EXIT_MISSING: i32 = 67;
 const EXIT_BRANCH: i32 = 68;
 const EXIT_BUSY: i32 = 69;
 

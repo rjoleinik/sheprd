@@ -35,8 +35,10 @@ until the branch is merged, locally and Git-compatibly, and drops it after.
 
 `sheprd change log [COMMIT]` lists each commit of the branch's own with its
 earlier versions, how each was recognized, whose turn it was, and when;
-changes since the last turn show as not recorded yet. It runs without the
-app, on the current directory's checkout (`docs/cli.md`).
+changes since the last turn show as not recorded yet. `sheprd change diff
+OLD [NEW]` shows how one version's patch differs from another's, or from
+what it became, as `git range-diff`. Both run without the app, on the
+current directory's checkout (`docs/cli.md`).
 
 ## Next
 

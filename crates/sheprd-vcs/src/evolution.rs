@@ -154,6 +154,79 @@ impl History {
             .iter()
             .any(|pending| std::ptr::eq(pending, marker))
     }
+
+    /// The one commit, on the branch now or an earlier version of one,
+    /// whose name starts with `prefix`.
+    pub fn resolve(&self, prefix: &str) -> Result<&str> {
+        let mut found: Vec<&str> = Vec::new();
+        let names = self.stack.iter().map(|commit| commit.sha.as_str()).chain(
+            self.markers.iter().flat_map(|marker| {
+                let new = match &marker.outcome {
+                    Outcome::Replaced { new, .. } => Some(new.as_str()),
+                    Outcome::Dropped => None,
+                };
+                std::iter::once(marker.old.as_str()).chain(new)
+            }),
+        );
+        for name in names.filter(|name| name.starts_with(prefix)) {
+            if !found.contains(&name) {
+                found.push(name);
+            }
+        }
+        match found.as_slice() {
+            [one] => Ok(one),
+            [] => Err(Error::Unknown.into()),
+            _ => Err(Error::Ambiguous.into()),
+        }
+    }
+
+    /// What `sha` became: the commit on the branch now that its markers
+    /// lead to, or `None` when it was dropped on the way.
+    pub fn current<'a>(&'a self, sha: &'a str) -> Option<&'a str> {
+        let mut current = sha;
+        let mut seen = std::collections::HashSet::new();
+        loop {
+            if self.stack.iter().any(|commit| commit.sha == current) {
+                return Some(current);
+            }
+            if !seen.insert(current) {
+                return None;
+            }
+            let marker = self
+                .markers
+                .iter()
+                .rev()
+                .find(|marker| marker.old == current)?;
+            match &marker.outcome {
+                Outcome::Replaced { new, .. } => current = new,
+                Outcome::Dropped => return None,
+            }
+        }
+    }
+}
+
+/// How one version's patch differs from another's: `git range-diff` of the
+/// two commits, so a rebase onto a moved base shows only what the rewrite
+/// itself changed. Both must be full names, as [`History::resolve`] gives.
+pub fn diff(
+    checkout: &Checkout,
+    old: &str,
+    new: &str,
+    mut run: impl FnMut(&Checkout, &str, &[u8], ScriptLimits) -> Result<String>,
+) -> Result<String> {
+    if !log::is_sha(old) || !log::is_sha(new) {
+        return Err(Error::Unknown.into());
+    }
+    let limits = ScriptLimits {
+        output: 8 * 1024 * 1024,
+        idle: crate::checkpoint::LIMITS.idle,
+    };
+    run(
+        checkout,
+        &script::range_diff(checkout, old, new),
+        b"",
+        limits,
+    )
 }
 
 /// `checkout`'s branch history, with what changed since the last look but

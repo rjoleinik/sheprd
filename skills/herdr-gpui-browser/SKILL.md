@@ -347,7 +347,7 @@ what Sheprd shows or keeps.
 | Silence a whole host's notifications | `sheprd host mute studio` |
 | Update the Sheprd app on another machine (the user confirms in Sheprd) | `sheprd host update studio` |
 | Save the working tree before a risky change, and compare later | `sheprd checkpoint create before refactor`, `sheprd checkpoint diff ID` |
-| See how a commit on this branch evolved: its earlier versions and which agent's turn rewrote each | `sheprd change log [COMMIT]`, then `git diff OLD NEW` |
+| See how a commit on this branch evolved: its earlier versions and which agent's turn rewrote each | `sheprd change log [COMMIT]`, then `sheprd change diff OLD` |
 | Your branch's pull request, its checks, and (with your workspace focused) its comments | `sheprd pr`, `sheprd pr checks`, `sheprd pr comments` |
 | Diagnose missing GitHub details: last reported GraphQL quota and rate-limit retry delays | `sheprd pr quota --json` |
 | List the vulnerability reports outsiders filed and the open Dependabot alerts of your repositories, most severe first | `sheprd security --json` |

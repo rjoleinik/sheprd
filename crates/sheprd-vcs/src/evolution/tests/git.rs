@@ -210,3 +210,42 @@ fn untrusted_subjects_stay_data() {
     );
     assert!(!dir.join("pwned").exists());
 }
+
+#[test]
+fn separators_in_a_subject_cannot_forge_output() {
+    let (_temp, dir, checkout) = repo();
+    let forged = format!("one\u{1e}skip\u{1f}{}", "a".repeat(40));
+    commit_file(&dir, "one.txt", "one\n", &forged);
+    observe(&checkout, &Credit::Outside, 1, isolated).unwrap();
+    let history = history_of(&checkout);
+    assert_eq!(history.stack.len(), 1);
+    assert_eq!(
+        history.stack[0].subject,
+        format!("oneskip{}", "a".repeat(40))
+    );
+}
+
+#[test]
+fn a_range_diff_shows_only_what_the_rewrite_changed() {
+    let (_temp, dir, checkout) = repo();
+    commit_file(&dir, "one.txt", "one\n", "one");
+    observe(&checkout, &Credit::Outside, 1, isolated).unwrap();
+    let before = git(&dir, &["rev-parse", "HEAD"]);
+    fs::write(dir.join("one.txt"), "one, amended\n").unwrap();
+    git(&dir, &["commit", "-q", "-a", "--amend", "--no-edit"]);
+    let after = git(&dir, &["rev-parse", "HEAD"]);
+    let history = history_of(&checkout);
+    assert_eq!(history.current(&before), Some(after.as_str()));
+    let text = diff(&checkout, &before, &after, isolated).unwrap();
+    assert!(text.contains("one, amended"), "{text}");
+    assert!(matches!(
+        diff(&checkout, &before, "not a name", isolated),
+        Err(crate::Error::Evolution(Error::Unknown))
+    ));
+    assert!(matches!(
+        diff(&checkout, &before, &sha('0'), isolated),
+        Err(crate::Error::Checkpoint(crate::checkpoint::Error::Script(
+            _
+        )))
+    ));
+}

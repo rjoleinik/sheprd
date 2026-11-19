@@ -29,9 +29,13 @@ use std::fmt::Write as _;
 fn rejected(error: impl Into<crate::Error>) -> crate::Error {
     let error = error.into();
     let code = match &error {
-        crate::Error::Vcs(sheprd_vcs::Error::Checkpoint(crate::checkpoint::Error::Missing)) => {
-            ErrorCode::NotFound
-        }
+        crate::Error::Vcs(
+            sheprd_vcs::Error::Checkpoint(crate::checkpoint::Error::Missing)
+            | sheprd_vcs::Error::Evolution(sheprd_vcs::evolution::Error::Unknown),
+        ) => ErrorCode::NotFound,
+        crate::Error::Vcs(sheprd_vcs::Error::Evolution(
+            sheprd_vcs::evolution::Error::Ambiguous,
+        )) => ErrorCode::InvalidRequest,
         crate::Error::NotInCheckout
         | crate::Error::DetachedHead
         | crate::Error::Vcs(sheprd_vcs::Error::Checkpoint(

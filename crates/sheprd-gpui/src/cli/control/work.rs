@@ -45,6 +45,9 @@ pub enum ChangeCommand {
     /// Each commit of the branch's own with its earlier versions, or only
     /// the one whose name starts with `commit`.
     Log { commit: Option<String> },
+    /// How version `old`'s patch differs from `new`'s, or from what `old`
+    /// became on the branch.
+    Diff { old: String, new: Option<String> },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -153,6 +156,10 @@ pub(super) fn change(args: &mut Args) -> Result<ChangeCommand, CliError> {
     Ok(match verb.to_str() {
         Some("log") => ChangeCommand::Log {
             commit: args.optional_text()?.map(commit_prefix).transpose()?,
+        },
+        Some("diff") => ChangeCommand::Diff {
+            old: commit_prefix(args.required_text("COMMIT")?)?,
+            new: args.optional_text()?.map(commit_prefix).transpose()?,
         },
         _ => return Err(unknown("change", verb)),
     })

@@ -133,3 +133,12 @@ fn a_look_records_only_what_changed() {
         Plan::Nothing
     );
 }
+
+#[test]
+fn a_repeated_section_is_refused() {
+    let output = "\u{1e}head\n\n\u{1e}log\n\u{1e}skip\n\u{1e}log\n";
+    assert!(matches!(
+        script::parse_read(output),
+        Err(crate::Error::Evolution(Error::Output))
+    ));
+}

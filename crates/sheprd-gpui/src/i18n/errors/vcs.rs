@@ -44,9 +44,11 @@ impl Localize for evolution::Error {
     fn localize(&self) -> String {
         match self {
             // keep-sorted start
+            Self::Ambiguous => fl!("error-vcs-evolution-ambiguous"),
             Self::Log => fl!("error-vcs-evolution-log"),
             Self::Output => fl!("error-vcs-evolution-output"),
             Self::Raced => fl!("error-vcs-evolution-raced"),
+            Self::Unknown => fl!("error-vcs-evolution-unknown"),
             // keep-sorted end
         }
     }

@@ -124,3 +124,33 @@ fn an_undone_amend_is_followed_once() {
         .collect();
     assert_eq!(chain, [sha('a'), sha('b')]);
 }
+
+#[test]
+fn versions_resolve_by_prefix_and_lead_to_what_they_became() {
+    let history = History {
+        stack: vec![commit('c', '3', "two")],
+        markers: vec![
+            marker('a', 'b'),
+            marker('b', 'c'),
+            Marker {
+                outcome: Outcome::Dropped,
+                ..marker('d', 'd')
+            },
+        ],
+        pending: 0,
+    };
+    assert_eq!(history.resolve("aaaa").unwrap(), sha('a'));
+    assert_eq!(history.resolve("cc").unwrap(), sha('c'));
+    assert!(matches!(
+        history.resolve("ffff"),
+        Err(crate::Error::Evolution(Error::Unknown))
+    ));
+    assert!(matches!(
+        history.resolve(""),
+        Err(crate::Error::Evolution(Error::Ambiguous))
+    ));
+    assert_eq!(history.current(&sha('a')), Some(sha('c').as_str()));
+    assert_eq!(history.current(&sha('c')), Some(sha('c').as_str()));
+    assert_eq!(history.current(&sha('d')), None, "dropped");
+    assert_eq!(history.current(&sha('e')), None, "never seen");
+}

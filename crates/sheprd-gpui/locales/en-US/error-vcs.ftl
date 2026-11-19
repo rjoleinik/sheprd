@@ -17,9 +17,11 @@ error-vcs-checkpoint-worker = The checkpoint worker stopped.
 
 ## Change history: every version of a branch's own commits.
 
+error-vcs-evolution-ambiguous = More than one version starts with that; give more of its name.
 error-vcs-evolution-log = The branch's change history was not understood.
 error-vcs-evolution-output = Change history output was not understood.
 error-vcs-evolution-raced = The change history kept changing while it was written.
+error-vcs-evolution-unknown = No version of this branch's commits starts with that.
 
 ## Searching a checkout for files and symbols.
 

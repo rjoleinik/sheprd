@@ -50,14 +50,20 @@ pub(super) fn read(checkout: &Checkout) -> String {
         r#"{locate}printf '\036head\n'
 g rev-parse -q --verify "$evo^{{commit}}" || true
 printf '\036log\n'
-if g rev-parse -q --verify "$evo:log" >/dev/null; then g cat-file blob "$evo:log"; fi
+if g rev-parse -q --verify "$evo:log" >/dev/null; then g cat-file blob "$evo:log" | tr -d '\036'; fi
 tip=refs/heads/$branch
 if [ -z "$base" ] || [ "$(g rev-list --count "$base..$tip")" -gt {STACK_LIMIT} ]; then
     printf '\036skip\n'
     exit 0
 fi
 printf '\036stack\n'
-g log --no-show-signature --format='%x1f%H%n%(trailers:key=Change-Id,valueonly,separator=%x20)%n%s' "$base..$tip"
+# Subjects are untrusted and may hold this output's separators: strip them,
+# then mark records by the NULs Git puts between commits, which a commit
+# message cannot hold.
+g log -z --no-show-signature --format='%H%n%(trailers:key=Change-Id,valueonly,separator=%x20)%n%s' "$base..$tip" \
+    | tr -d '\036\037' | tr '\000' '\037'
+printf '\n'
+
 printf '\036patches\n'
 g log --no-show-signature -p --no-ext-diff --no-textconv --no-color --format='commit %H' "$base..$tip" \
     | g patch-id --stable
@@ -118,6 +124,21 @@ pub(super) fn delete(checkout: &Checkout, old: &str) -> String {
     )
 }
 
+/// `git range-diff` of commit `old` against commit `new`; refuses (as a
+/// missing checkpoint does) when Git no longer has either.
+pub(super) fn range_diff(checkout: &Checkout, old: &str, new: &str) -> String {
+    format!(
+        r#"{prelude}for commit in {old} {new}; do
+    g cat-file -e "$commit^{{commit}}" 2>/dev/null || exit {missing}
+done
+# One commit each side: always pair them, however much the rewrite changed.
+g range-diff --no-color --creation-factor=999 {old}^..{old} {new}^..{new}
+"#,
+        prelude = crate::checkpoint::prelude(checkout),
+        missing = crate::checkpoint::EXIT_MISSING,
+    )
+}
+
 /// What [`read`] found.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub(super) struct Read {
@@ -131,8 +152,14 @@ pub(super) struct Read {
 pub(super) fn parse_read(output: &str) -> Result<Read> {
     let mut read = Read::default();
     let mut patches = Vec::new();
+    let mut seen = Vec::new();
     for section in output.split(RECORD).skip(1) {
         let (name, body) = section.split_once('\n').unwrap_or((section, ""));
+        // Each section once: a repeat could only be forged output.
+        if seen.contains(&name) {
+            return Err(Error::Output.into());
+        }
+        seen.push(name);
         match name {
             "head" => {
                 let head = body.trim();
@@ -166,10 +193,17 @@ pub(super) fn parse_read(output: &str) -> Result<Read> {
     Ok(read)
 }
 
-/// `git log` records, newest first, returned oldest first.
+/// `git log` records, newest first, returned oldest first: each the name,
+/// the `Change-Id` trailers, and the subject, one line each.
 fn parse_stack(body: &str) -> Result<Vec<Commit>> {
     let mut stack = Vec::new();
-    for record in body.split(UNIT).skip(1) {
+    for record in body.split(UNIT).map(|record| record.trim_matches('\n')) {
+        if record.is_empty() {
+            continue;
+        }
+        if record.lines().count() > 3 {
+            return Err(Error::Output.into());
+        }
         let mut lines = record.lines();
         let sha = lines
             .next()

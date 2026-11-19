@@ -16,8 +16,8 @@ mod script;
 mod tests;
 
 pub use error::Error;
-pub(crate) use script::prelude;
 pub use script::valid_id;
+pub(crate) use script::{EXIT_MISSING, prelude};
 
 use crate::{Result, evolution};
 use sheprd_client::{

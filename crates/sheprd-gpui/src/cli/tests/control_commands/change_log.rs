@@ -24,3 +24,22 @@ fn change_log_takes_an_optional_commit_prefix() {
     }
     assert!(parse(&["change", "evolve"]).is_err());
 }
+
+#[test]
+fn change_diff_takes_one_or_two_commits() {
+    assert_eq!(
+        command(&["change", "diff", "abcd"]),
+        ControlCommand::Change(ChangeCommand::Diff {
+            old: "abcd".into(),
+            new: None
+        })
+    );
+    assert_eq!(
+        command(&["change", "diff", "abcd", "EF01"]),
+        ControlCommand::Change(ChangeCommand::Diff {
+            old: "abcd".into(),
+            new: Some("ef01".into())
+        })
+    );
+    assert!(parse(&["change", "diff"]).is_err());
+}
