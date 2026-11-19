@@ -52,11 +52,20 @@ id)"`. Amends and rebases keep the trailer, so a commit is followed even
 when its patch and subject both change. Sheprd does not install a hook or
 rewrite commits to add one.
 
+## Stacked branches
+
+Git rebases a commit's descendants on its own branch, so the commits left on
+an old version are on other branches built on this one. `sheprd change
+stale` finds the local branches whose commits include a replaced version and
+prints the `git rebase --onto NEW OLD BRANCH` that carries each to the
+current version, or says the version was dropped. It moves nothing: running
+the rebase, and resolving its conflicts, stays with the agent or the user.
+
 ## Next
 
 1. Folding each turn's edits into the tab's own change, through a temporary
-   index, and restacking later changes when an earlier one is rewritten,
-   reporting conflicts instead of resolving them.
+   index, so a turn becomes a commit without the agent committing. This
+   writes to the branch, so it would be an explicit setting, off by default.
 2. Crediting edits by hunk from `sheprd-acp`'s tool calls when two agents'
    turns overlap.
 3. Reading jj's own operation log where a repository already uses jj.

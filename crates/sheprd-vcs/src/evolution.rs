@@ -14,12 +14,14 @@ mod error;
 pub mod log;
 mod matcher;
 mod script;
+mod stale;
 #[cfg(test)]
 mod tests;
 
 pub use error::Error;
 pub use log::{Commit, Log, Marker, Match, Outcome, new_change_id};
 pub use matcher::versions;
+pub use stale::{Stale, find as find_stale, stale};
 
 use crate::{Result, checkpoint::Checkout};
 use sheprd_client::ScriptLimits;

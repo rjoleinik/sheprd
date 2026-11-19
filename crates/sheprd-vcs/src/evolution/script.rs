@@ -139,6 +139,51 @@ g range-diff --no-color --creation-factor=999 {old}^..{old} {new}^..{new}
     )
 }
 
+/// Other local branches, most recently committed first, each with its own
+/// commits since the default branch, newest first.
+pub(super) fn branches(checkout: &Checkout) -> String {
+    format!(
+        r#"{locate}[ -n "$base_ref" ] || exit 0
+g for-each-ref --count={BRANCH_LIMIT} --sort=-committerdate --format='%(refname:lstrip=2)' refs/heads/ \
+    | while IFS= read -r other; do
+        [ "$other" != "$branch" ] || continue
+        printf '\036%s\n' "$other"
+        g rev-list --max-count={STACK_LIMIT} "$base_ref..refs/heads/$other"
+    done
+"#,
+        locate = locate(checkout),
+    )
+}
+
+/// Branches [`branches`] looks at; the rest are older.
+const BRANCH_LIMIT: usize = 100;
+
+/// [`branches`]' output: each branch and its commits. Git refuses control
+/// characters in branch names, so a name is one line.
+pub(super) fn parse_branches(output: &str) -> Result<Vec<(String, Vec<String>)>> {
+    let mut branches = Vec::new();
+    for record in output.split(RECORD).skip(1) {
+        let mut lines = record.lines();
+        let name = lines
+            .next()
+            .filter(|name| !name.is_empty())
+            .ok_or(Error::Output)?;
+        let commits: Vec<String> = lines
+            .filter(|line| !line.is_empty())
+            .map(|line| {
+                log::is_sha(line)
+                    .then(|| line.to_owned())
+                    .ok_or(Error::Output)
+            })
+            .collect::<std::result::Result<_, _>>()?;
+        branches.push((name.to_owned(), commits));
+        if branches.len() > BRANCH_LIMIT {
+            return Err(Error::Output.into());
+        }
+    }
+    Ok(branches)
+}
+
 /// What [`read`] found.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub(super) struct Read {

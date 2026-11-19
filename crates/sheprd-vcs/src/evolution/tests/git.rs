@@ -249,3 +249,32 @@ fn a_range_diff_shows_only_what_the_rewrite_changed() {
         )))
     ));
 }
+
+#[test]
+fn a_branch_stacked_on_an_amended_commit_is_stale_until_rebased() {
+    let (_temp, dir, checkout) = repo();
+    commit_file(&dir, "one.txt", "one\n", "one");
+    observe(&checkout, &Credit::Outside, 1, isolated).unwrap();
+    let old = git(&dir, &["rev-parse", "HEAD"]);
+    git(&dir, &["branch", "stack/up"]);
+    git(&dir, &["checkout", "-q", "stack/up"]);
+    commit_file(&dir, "up.txt", "up\n", "up");
+    git(&dir, &["checkout", "-q", "feature"]);
+    fs::write(dir.join("one.txt"), "one, amended\n").unwrap();
+    git(&dir, &["commit", "-q", "-a", "--amend", "--no-edit"]);
+    observe(&checkout, &Credit::Outside, 2, isolated).unwrap();
+    let new = git(&dir, &["rev-parse", "HEAD"]);
+
+    let found = stale(&checkout, 3, isolated).unwrap();
+    assert_eq!(
+        found,
+        [Stale {
+            branch: "stack/up".into(),
+            old: old.clone(),
+            new: Some(new.clone()),
+        }]
+    );
+    git(&dir, &["rebase", "-q", "--onto", &new, &old, "stack/up"]);
+    git(&dir, &["checkout", "-q", "feature"]);
+    assert_eq!(stale(&checkout, 4, isolated).unwrap(), []);
+}

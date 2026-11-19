@@ -7,6 +7,7 @@ mod credit;
 mod git;
 mod history_log;
 mod matching;
+mod stale;
 
 /// A full object name made of one repeated hex digit.
 fn sha(digit: char) -> String {

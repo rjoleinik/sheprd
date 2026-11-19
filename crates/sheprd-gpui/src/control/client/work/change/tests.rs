@@ -99,3 +99,31 @@ fn json_names_how_in_kebab_case() {
     assert_eq!(json["dropped"][0]["how"], "dropped");
     assert_eq!(serde_json::to_value(How::ChangeId).unwrap(), "change-id");
 }
+
+#[test]
+fn stale_branches_read_with_their_rebase() {
+    let stale = [
+        StaleInfo {
+            branch: "stack/up".into(),
+            old: sha('a'),
+            new: Some(sha('b')),
+            command: Some("git rebase --onto bbbb aaaa stack/up".into()),
+        },
+        StaleInfo {
+            branch: "other".into(),
+            old: sha('c'),
+            new: None,
+            command: None,
+        },
+    ];
+    assert_eq!(
+        describe_stale(&stale, "feature"),
+        "stack/up is built on aaaaaaa, now bbbbbbb
+    git rebase --onto bbbb aaaa stack/up
+other is built on ccccccc, which was dropped from feature"
+    );
+    assert_eq!(
+        describe_stale(&[], "feature"),
+        "No other branch is built on an earlier version of feature's commits"
+    );
+}

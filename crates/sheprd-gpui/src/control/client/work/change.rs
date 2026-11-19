@@ -175,7 +175,64 @@ pub(in crate::control::client) fn change(command: ChangeCommand) -> crate::Resul
         ChangeCommand::Log { commit } => log(&here()?, commit.as_deref()),
         ChangeCommand::Diff { old, new } => diff(&here()?, &old, new.as_deref()),
         ChangeCommand::Id => id(),
+        ChangeCommand::Stale => stale(&here()?),
     }
+}
+
+/// One branch as `change stale --json` prints it.
+#[derive(Debug, PartialEq, Eq, Serialize)]
+pub(super) struct StaleInfo {
+    pub branch: String,
+    pub old: String,
+    /// `None`: the version it is built on was dropped.
+    pub new: Option<String>,
+    pub command: Option<String>,
+}
+
+pub(super) fn describe_stale(stale: &[StaleInfo], branch: &str) -> String {
+    if stale.is_empty() {
+        return format!("No other branch is built on an earlier version of {branch}'s commits");
+    }
+    let mut text = String::new();
+    for info in stale {
+        match (&info.new, &info.command) {
+            (Some(new), Some(command)) => {
+                let _ = writeln!(
+                    text,
+                    "{} is built on {}, now {}\n    {command}",
+                    info.branch,
+                    short(&info.old),
+                    short(new)
+                );
+            }
+            _ => {
+                let _ = writeln!(
+                    text,
+                    "{} is built on {}, which was dropped from {branch}",
+                    info.branch,
+                    short(&info.old)
+                );
+            }
+        }
+    }
+    text.trim_end().to_owned()
+}
+
+fn stale(checkout: &Checkout) -> crate::Result<Output> {
+    let stale: Vec<StaleInfo> = evolution::stale(checkout, now(), direct::here_with_input)
+        .map_err(rejected)?
+        .into_iter()
+        .map(|stale| StaleInfo {
+            command: stale.command(),
+            branch: stale.branch,
+            old: stale.old,
+            new: stale.new,
+        })
+        .collect();
+    Output::data(
+        describe_stale(&stale, &checkout.branch),
+        &serde_json::json!({ "branch": checkout.branch, "stale": stale }),
+    )
 }
 
 /// A fresh `Change-Id`, for `git commit --trailer "Change-Id: $(sheprd

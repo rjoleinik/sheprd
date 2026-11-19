@@ -50,6 +50,9 @@ pub enum ChangeCommand {
     Diff { old: String, new: Option<String> },
     /// A new `Change-Id` trailer value for a commit about to be made.
     Id,
+    /// Other local branches built on a replaced version of this branch's
+    /// commits, each with the rebase that would bring it up to date.
+    Stale,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -160,6 +163,7 @@ pub(super) fn change(args: &mut Args) -> Result<ChangeCommand, CliError> {
             commit: args.optional_text()?.map(commit_prefix).transpose()?,
         },
         Some("id") => ChangeCommand::Id,
+        Some("stale") => ChangeCommand::Stale,
         Some("diff") => ChangeCommand::Diff {
             old: commit_prefix(args.required_text("COMMIT")?)?,
             new: args.optional_text()?.map(commit_prefix).transpose()?,

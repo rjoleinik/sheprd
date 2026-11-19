@@ -348,6 +348,7 @@ what Sheprd shows or keeps.
 | Update the Sheprd app on another machine (the user confirms in Sheprd) | `sheprd host update studio` |
 | Save the working tree before a risky change, and compare later | `sheprd checkpoint create before refactor`, `sheprd checkpoint diff ID` |
 | See how a commit on this branch evolved: its earlier versions and which agent's turn rewrote each | `sheprd change log [COMMIT]`, then `sheprd change diff OLD` |
+| After amending or rebasing a branch others are stacked on, find the stacked branches left on old versions and how to rebase them | `sheprd change stale` |
 | Commit on a feature branch so Sheprd follows the commit through later amends and rebases | `git commit -m "..." --trailer "Change-Id: $(sheprd change id)"` (once per new commit; amends keep it) |
 | Your branch's pull request, its checks, and (with your workspace focused) its comments | `sheprd pr`, `sheprd pr checks`, `sheprd pr comments` |
 | Diagnose missing GitHub details: last reported GraphQL quota and rate-limit retry delays | `sheprd pr quota --json` |

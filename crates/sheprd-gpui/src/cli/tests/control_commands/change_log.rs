@@ -52,3 +52,11 @@ fn change_id_takes_nothing() {
     );
     assert!(parse(&["change", "id", "extra"]).is_err());
 }
+
+#[test]
+fn change_stale_takes_nothing() {
+    assert_eq!(
+        command(&["change", "stale"]),
+        ControlCommand::Change(ChangeCommand::Stale)
+    );
+}
