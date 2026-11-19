@@ -40,15 +40,17 @@ OLD [NEW]` shows how one version's patch differs from another's, or from
 what it became, as `git range-diff`. Both run without the app, on the
 current directory's checkout (`docs/cli.md`).
 
+In the app, a workspace's Checkpoints dialog lists the same under Commit
+versions: each rewritten commit with its earlier versions, the commits
+dropped, and the command that compares two.
+
 ## Next
 
-1. A history list for each commit in the app, beside checkpoints, with a diff
-   between any two versions.
-2. Adding a `Change-Id` trailer to commits agents make, so rewrites that
+1. Adding a `Change-Id` trailer to commits agents make, so rewrites that
    change both patch and subject are still recognized.
-3. Folding each turn's edits into the tab's own change, through a temporary
+2. Folding each turn's edits into the tab's own change, through a temporary
    index, and restacking later changes when an earlier one is rewritten,
    reporting conflicts instead of resolving them.
-4. Crediting edits by hunk from `sheprd-acp`'s tool calls when two agents'
+3. Crediting edits by hunk from `sheprd-acp`'s tool calls when two agents'
    turns overlap.
-5. Reading jj's own operation log where a repository already uses jj.
+4. Reading jj's own operation log where a repository already uses jj.

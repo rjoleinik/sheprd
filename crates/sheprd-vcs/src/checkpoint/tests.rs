@@ -4,6 +4,7 @@ use super::*;
 use sheprd_client::protocol::ClientShellSnapshot;
 use sheprd_client::protocol::ClientShellWorktree;
 
+mod changes;
 mod wanted;
 mod wsl_hosts;
 
@@ -301,7 +302,11 @@ fn the_dialog_lists_first_and_restores_only_after_confirming() {
     );
     // Nothing is confirmed yet, and another branch's checkpoint never is.
     checkpoints.restore();
-    assert_eq!(queued(&checkpoints).len(), 2);
+    assert!(
+        !queued(&checkpoints)
+            .iter()
+            .any(|(_, request)| matches!(request, Request::Restore { .. }))
+    );
     let view = checkpoints.view.as_mut().unwrap();
     view.confirming = Some("1".into());
     checkpoints.restore();

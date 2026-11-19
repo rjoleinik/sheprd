@@ -113,9 +113,15 @@ pub struct Checkpoint {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Request {
-    Capture { label: String },
+    Capture {
+        label: String,
+    },
+    /// The branch's change history, for the dialog.
+    History,
     List,
-    Restore { id: String },
+    Restore {
+        id: String,
+    },
 }
 
 impl Request {
@@ -123,6 +129,7 @@ impl Request {
     fn failed(&self, error: crate::Error) -> Answer {
         match self {
             Self::Capture { .. } => Answer::Captured(Err(error)),
+            Self::History => Answer::History(Err(error)),
             Self::List => Answer::Listed(Err(error)),
             Self::Restore { .. } => Answer::Restored(Err(error)),
         }
@@ -140,6 +147,7 @@ struct Job {
 
 enum Answer {
     Captured(Result<Option<String>>),
+    History(Result<Option<evolution::History>>),
     Listed(Result<Vec<Checkpoint>>),
     Restored(Result<()>),
 }
@@ -150,18 +158,14 @@ fn execute(job: &Job, stamp: &str) -> Answer {
         Request::Capture { label } => {
             let captured = run(checkout, &script::capture(checkout, label, stamp, KEEP))
                 .and_then(|output| script::parse_capture(&output));
-            if let Some(credit) = &job.credit {
-                let now = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .map_or(0, |elapsed| {
-                        i64::try_from(elapsed.as_secs()).unwrap_or(i64::MAX)
-                    });
-                if let Err(error) = evolution::observe(checkout, credit, now, run_input) {
-                    tracing::warn!(category = "evolution", %error, "change history not recorded");
-                }
+            if let Some(credit) = &job.credit
+                && let Err(error) = evolution::observe(checkout, credit, now(), run_input)
+            {
+                tracing::warn!(category = "evolution", %error, "change history not recorded");
             }
             Answer::Captured(captured)
         }
+        Request::History => Answer::History(evolution::history(checkout, now(), run_input)),
         Request::List => Answer::Listed(
             run(checkout, &script::list(checkout)).and_then(|output| script::parse_list(&output)),
         ),
@@ -173,6 +177,15 @@ fn execute(job: &Job, stamp: &str) -> Answer {
             .map(drop),
         ),
     }
+}
+
+/// Unix seconds on this machine's clock.
+fn now() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |elapsed| {
+            i64::try_from(elapsed.as_secs()).unwrap_or(i64::MAX)
+        })
 }
 
 /// Never cancelled: killing Git halfway through a snapshot or a restore could
@@ -268,6 +281,15 @@ pub enum Listing {
     Failed(String),
 }
 
+/// What the dialog's change history shows while it loads or after it failed.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Changes {
+    Loading,
+    /// `None`: the branch has no commits of its own to track.
+    Ready(Option<evolution::History>),
+    Failed(String),
+}
+
 /// The open checkpoints dialog: one checkout's list, and the restore the user
 /// is confirming or running.
 pub struct View {
@@ -276,6 +298,8 @@ pub struct View {
     /// The workspace it was opened from, whose agents a restore would race.
     pub workspace_id: String,
     pub listing: Listing,
+    /// Every version of the branch's own commits.
+    pub changes: Changes,
     pub selected: Option<usize>,
     /// The checkpoint the user asked to restore, awaiting confirmation.
     pub confirming: Option<String>,
@@ -437,12 +461,21 @@ impl Checkpoints {
     /// Ask for `checkout`'s list ahead of any waiting checkpoints: the user
     /// is looking at it.
     fn list(&mut self, checkout: Checkout) {
+        self.ask(checkout, Request::List);
+    }
+
+    /// Ask for `checkout`'s change history as [`Checkpoints::list`] does.
+    fn history(&mut self, checkout: Checkout) {
+        self.ask(checkout, Request::History);
+    }
+
+    fn ask(&mut self, checkout: Checkout, request: Request) {
         let Some(lane) = self.lane(&checkout.host) else {
             return;
         };
         let job = Job {
             checkout,
-            request: Request::List,
+            request,
             credit: None,
         };
         if !lane.queue.contains(&job) {
@@ -457,12 +490,14 @@ impl Checkpoints {
             title,
             workspace_id,
             listing: Listing::Loading,
+            changes: Changes::Loading,
             selected: None,
             confirming: None,
             restoring: false,
             error: None,
             wanted: None,
         });
+        self.history(checkout.clone());
         self.list(checkout);
     }
 
@@ -598,9 +633,16 @@ impl Checkpoints {
             .as_ref()
             .is_some_and(|view| view.checkout == job.checkout);
         match answer {
+            // A turn's capture also recorded its history, which may have
+            // changed even when the files had not.
             Answer::Captured(result) => match result {
-                Ok(Some(_)) if viewed => {
-                    self.list(job.checkout);
+                Ok(captured) if viewed => {
+                    if job.credit.is_some() {
+                        self.history(job.checkout.clone());
+                    }
+                    if captured.is_some() {
+                        self.list(job.checkout);
+                    }
                     false
                 }
                 Ok(_) => false,
@@ -609,6 +651,16 @@ impl Checkpoints {
                     false
                 }
             },
+            Answer::History(result) => {
+                let Some(view) = self.view.as_mut().filter(|_| viewed) else {
+                    return false;
+                };
+                view.changes = match result {
+                    Ok(history) => Changes::Ready(history),
+                    Err(error) => Changes::Failed(describe(&error)),
+                };
+                true
+            }
             Answer::Listed(result) => {
                 let Some(view) = self.view.as_mut().filter(|_| viewed) else {
                     return false;
