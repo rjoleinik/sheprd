@@ -43,3 +43,12 @@ fn change_diff_takes_one_or_two_commits() {
     );
     assert!(parse(&["change", "diff"]).is_err());
 }
+
+#[test]
+fn change_id_takes_nothing() {
+    assert_eq!(
+        command(&["change", "id"]),
+        ControlCommand::Change(ChangeCommand::Id)
+    );
+    assert!(parse(&["change", "id", "extra"]).is_err());
+}

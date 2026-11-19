@@ -174,7 +174,20 @@ pub(in crate::control::client) fn change(command: ChangeCommand) -> crate::Resul
     match command {
         ChangeCommand::Log { commit } => log(&here()?, commit.as_deref()),
         ChangeCommand::Diff { old, new } => diff(&here()?, &old, new.as_deref()),
+        ChangeCommand::Id => id(),
     }
+}
+
+/// A fresh `Change-Id`, for `git commit --trailer "Change-Id: $(sheprd
+/// change id)"`; needs no checkout.
+fn id() -> crate::Result<Output> {
+    let mut random = [0; 20];
+    getrandom::fill(&mut random).map_err(|error| crate::control::Error::Rejected {
+        code: ErrorCode::Failed,
+        message: format!("No randomness for a Change-Id: {error}"),
+    })?;
+    let id = evolution::new_change_id(random);
+    Output::data(id.clone(), &serde_json::json!({ "change_id": id }))
 }
 
 /// The range-diff from version `old` to `new`, or to what `old` became.

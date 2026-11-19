@@ -210,6 +210,17 @@ pub fn is_sha(text: &str) -> bool {
     matches!(text.len(), 40 | 64) && text.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
 }
 
+/// A Gerrit-style `Change-Id` value from 20 random bytes: `I` and 40 hex
+/// digits, which Gerrit, `git-branchless`, and this matcher all accept.
+pub fn new_change_id(random: [u8; 20]) -> String {
+    let mut id = String::with_capacity(41);
+    id.push('I');
+    for byte in random {
+        id.push_str(&format!("{byte:02x}"));
+    }
+    id
+}
+
 /// A trailer value usable as a key: one printable word, bounded.
 pub fn change_id_of(value: &str) -> Option<String> {
     let value = value.trim();

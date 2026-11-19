@@ -18,7 +18,7 @@ mod script;
 mod tests;
 
 pub use error::Error;
-pub use log::{Commit, Log, Marker, Match, Outcome};
+pub use log::{Commit, Log, Marker, Match, Outcome, new_change_id};
 pub use matcher::versions;
 
 use crate::{Result, checkpoint::Checkout};

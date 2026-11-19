@@ -142,3 +142,10 @@ fn a_repeated_section_is_refused() {
         Err(crate::Error::Evolution(Error::Output))
     ));
 }
+
+#[test]
+fn new_change_ids_are_gerrit_shaped_and_matchable() {
+    let id = new_change_id([0xab; 20]);
+    assert_eq!(id, format!("I{}", "ab".repeat(20)));
+    assert_eq!(log::change_id_of(&id), Some(id));
+}
