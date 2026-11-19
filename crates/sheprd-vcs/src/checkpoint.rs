@@ -16,9 +16,10 @@ mod script;
 mod tests;
 
 pub use error::Error;
+pub(crate) use script::prelude;
 pub use script::valid_id;
 
-use crate::Result;
+use crate::{Result, evolution};
 use sheprd_client::{
     ConnectTarget, ScriptHost, ScriptLimits, SshLane, protocol::AgentStatus, run_script,
 };
@@ -40,7 +41,7 @@ const QUEUE_LIMIT: usize = 32;
 const HOST_LIMIT: usize = 16;
 /// Snapshotting a large checkout hashes every changed file, which can be
 /// quiet for a while; output is a few lines per checkpoint.
-const LIMITS: ScriptLimits = ScriptLimits {
+pub(crate) const LIMITS: ScriptLimits = ScriptLimits {
     output: 1024 * 1024,
     idle: Duration::from_secs(120),
 };
@@ -132,6 +133,9 @@ impl Request {
 struct Job {
     checkout: Checkout,
     request: Request,
+    /// After a turn's capture, also record the branch's change history,
+    /// crediting this.
+    credit: Option<evolution::Credit>,
 }
 
 enum Answer {
@@ -143,10 +147,21 @@ enum Answer {
 fn execute(job: &Job, stamp: &str) -> Answer {
     let checkout = &job.checkout;
     match &job.request {
-        Request::Capture { label } => Answer::Captured(
-            run(checkout, &script::capture(checkout, label, stamp, KEEP))
-                .and_then(|output| script::parse_capture(&output)),
-        ),
+        Request::Capture { label } => {
+            let captured = run(checkout, &script::capture(checkout, label, stamp, KEEP))
+                .and_then(|output| script::parse_capture(&output));
+            if let Some(credit) = &job.credit {
+                let now = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .map_or(0, |elapsed| {
+                        i64::try_from(elapsed.as_secs()).unwrap_or(i64::MAX)
+                    });
+                if let Err(error) = evolution::observe(checkout, credit, now, run_input) {
+                    tracing::warn!(category = "evolution", %error, "change history not recorded");
+                }
+            }
+            Answer::Captured(captured)
+        }
         Request::List => Answer::Listed(
             run(checkout, &script::list(checkout)).and_then(|output| script::parse_list(&output)),
         ),
@@ -167,12 +182,27 @@ fn run(checkout: &Checkout, body: &str) -> Result<String> {
 }
 
 fn run_limited(checkout: &Checkout, body: &str, limits: ScriptLimits) -> Result<String> {
-    Ok(String::from_utf8_lossy(&run_bytes(checkout, body, limits)?).into_owned())
+    run_input(checkout, body, &[], limits)
+}
+
+/// [`run_limited`], with `input` as the script's stdin.
+pub(crate) fn run_input(
+    checkout: &Checkout,
+    body: &str,
+    input: &[u8],
+    limits: ScriptLimits,
+) -> Result<String> {
+    Ok(String::from_utf8_lossy(&run_bytes(checkout, body, input, limits)?).into_owned())
 }
 
 /// The script's output as it printed it, for a patch that must apply byte
 /// for byte.
-fn run_bytes(checkout: &Checkout, body: &str, limits: ScriptLimits) -> Result<Vec<u8>> {
+fn run_bytes(
+    checkout: &Checkout,
+    body: &str,
+    input: &[u8],
+    limits: ScriptLimits,
+) -> Result<Vec<u8>> {
     let host = match &checkout.host {
         Host::Local => ScriptHost::Local,
         Host::Ssh(target) => ScriptHost::Ssh(target, SshLane::Quick),
@@ -184,7 +214,7 @@ fn run_bytes(checkout: &Checkout, body: &str, limits: ScriptLimits) -> Result<Ve
     run_script(
         host,
         body,
-        std::io::empty(),
+        input,
         &mut output,
         limits,
         &AtomicBool::new(false),
@@ -321,10 +351,15 @@ impl Checkpoints {
             let name = Some(agent.name.trim())
                 .filter(|name| !name.is_empty())
                 .unwrap_or("Agent");
-            let label = match (before, agent.status) {
+            let (label, credit) = match (before, agent.status) {
                 // A turn resuming after a permission prompt is the same turn.
-                (Idle | Done, Working) => format!("Before {name}'s turn"),
-                (Working | Blocked, Idle | Done) => format!("{name} finished a turn"),
+                (Idle | Done, Working) => {
+                    (format!("Before {name}'s turn"), evolution::Credit::Outside)
+                }
+                (Working | Blocked, Idle | Done) => (
+                    format!("{name} finished a turn"),
+                    evolution::Credit::Agents(name.to_owned()),
+                ),
                 _ => continue,
             };
             let checkout = session.workspace(&agent.workspace).and_then(|workspace| {
@@ -335,11 +370,11 @@ impl Checkpoints {
                 )
             });
             if let Some(checkout) = checkout {
-                captures.push((checkout, label));
+                captures.push((checkout, label, credit));
             }
         }
-        for (checkout, label) in captures {
-            self.capture(checkout, label);
+        for (checkout, label, credit) in captures {
+            self.capture(checkout, label, Some(credit));
         }
     }
 
@@ -369,9 +404,10 @@ impl Checkpoints {
             .collect()
     }
 
-    /// Queue a checkpoint of `checkout`. One still waiting for the same
-    /// checkout takes the newer label instead: it will snapshot the same files.
-    fn capture(&mut self, checkout: Checkout, label: String) {
+    /// Queue a checkpoint of `checkout`, then a look at its change history
+    /// crediting `credit`. One still waiting for the same checkout takes the
+    /// newer label instead, and both credits: it will see the same files.
+    fn capture(&mut self, checkout: Checkout, label: String, credit: Option<evolution::Credit>) {
         let Some(lane) = self.lane(&checkout.host) else {
             return;
         };
@@ -381,6 +417,10 @@ impl Checkpoints {
             .find(|job| job.checkout == checkout && matches!(job.request, Request::Capture { .. }))
         {
             job.request = Request::Capture { label };
+            job.credit = match (job.credit.take(), credit) {
+                (Some(older), Some(newer)) => Some(older.merge(newer)),
+                (older, newer) => newer.or(older),
+            };
             return;
         }
         if lane.queue.len() >= QUEUE_LIMIT {
@@ -390,6 +430,7 @@ impl Checkpoints {
         lane.queue.push_back(Job {
             checkout,
             request: Request::Capture { label },
+            credit,
         });
     }
 
@@ -402,6 +443,7 @@ impl Checkpoints {
         let job = Job {
             checkout,
             request: Request::List,
+            credit: None,
         };
         if !lane.queue.contains(&job) {
             lane.queue.push_front(job);
@@ -457,6 +499,7 @@ impl Checkpoints {
         let job = Job {
             checkout: view.checkout.clone(),
             request: Request::Restore { id },
+            credit: None,
         };
         match self.lane(&job.checkout.host) {
             Some(lane) => lane.queue.push_front(job),

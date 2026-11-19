@@ -102,6 +102,9 @@ fn family(name: &str) -> &'static str {
         "checkpoint" => {
             "sheprd checkpoint [list]\n    The current directory's checkout's checkpoints, newest first.\nsheprd checkpoint create [LABEL...]\n    Take one now.\nsheprd checkpoint diff CHECKPOINT [CHECKPOINT]\n    What changed between two, or since one in the working tree (untracked\n    files included).\n    These run here, on the current branch; Sheprd need not run.\nsheprd checkpoint restore [CHECKPOINT]\n    Open the caller's checkout's checkpoints dialog in Sheprd with\n    CHECKPOINT chosen; the user confirms the restore there."
         }
+        "change" => {
+            "sheprd change [log] [COMMIT]\n    Each commit of the current branch's own (since it left the default\n    branch), newest first, with every earlier version of it: how the\n    rewrite was recognized (same Change-Id, same patch, or an amend in\n    place), whose turn it was, and when. With COMMIT, only that one.\n    Sheprd records versions as agents start and finish turns, and keeps\n    them until the branch is merged or deleted; diff two with\n    `git diff OLD NEW`. Reading runs here; Sheprd need not run."
+        }
         "scripts" => {
             "sheprd scripts [list]\n    The current directory's repository's worktree scripts\n    (.herdr/worktree.toml). Runs here; Sheprd need not run.\nsheprd scripts setup|run\n    Run one in a new tab of the caller's workspace (setup: linked worktrees\n    only). Sheprd asks before running a script it has not seen. The\n    archive script runs only when a worktree is removed in Sheprd."
         }

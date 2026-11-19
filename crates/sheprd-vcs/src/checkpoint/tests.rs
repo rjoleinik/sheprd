@@ -245,13 +245,13 @@ fn queues_are_bounded() {
     let mut checkpoints = Checkpoints::default();
     for index in 0..QUEUE_LIMIT + 5 {
         let checkout = Checkout::new(Host::Local, &format!("/r{index}/.git"), Some("main"));
-        checkpoints.capture(checkout.unwrap(), "turn".into());
+        checkpoints.capture(checkout.unwrap(), "turn".into(), None);
     }
     assert_eq!(queued(&checkpoints).len(), QUEUE_LIMIT);
     for index in 0..HOST_LIMIT + 5 {
         let host = Host::Ssh(format!("box{index}"));
         let checkout = Checkout::new(host, "/r/.git", Some("main")).unwrap();
-        checkpoints.capture(checkout, "turn".into());
+        checkpoints.capture(checkout, "turn".into(), None);
     }
     assert_eq!(checkpoints.lanes.len(), HOST_LIMIT);
 }
@@ -272,6 +272,7 @@ fn answer(checkpoints: &mut Checkpoints, request: Request, answer: Answer) -> Ve
     let job = Job {
         checkout: feature(),
         request,
+        credit: None,
     };
     checkpoints.apply(job, answer, &mut restored);
     restored
@@ -280,7 +281,7 @@ fn answer(checkpoints: &mut Checkpoints, request: Request, answer: Answer) -> Ve
 #[test]
 fn the_dialog_lists_first_and_restores_only_after_confirming() {
     let mut checkpoints = Checkpoints::default();
-    checkpoints.capture(feature(), "turn".into());
+    checkpoints.capture(feature(), "turn".into(), None);
     checkpoints.open(feature(), "repo".into(), "w4".into());
     assert_eq!(
         queued(&checkpoints)[0],

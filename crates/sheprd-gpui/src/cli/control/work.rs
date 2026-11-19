@@ -1,4 +1,4 @@
-//! `notes`, `checkpoint`, `scripts`, `fan-out`, and `wait`.
+//! `notes`, `checkpoint`, `change`, `scripts`, `fan-out`, and `wait`.
 use super::{Args, CliError, Script, unknown};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -38,6 +38,13 @@ pub enum CheckpointCommand {
     Restore {
         id: Option<String>,
     },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ChangeCommand {
+    /// Each commit of the branch's own with its earlier versions, or only
+    /// the one whose name starts with `commit`.
+    Log { commit: Option<String> },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -128,6 +135,26 @@ pub(super) fn checkpoint(args: &mut Args) -> Result<CheckpointCommand, CliError>
             id: args.optional_text()?.map(checkpoint_id).transpose()?,
         },
         _ => return Err(unknown("checkpoint", verb)),
+    })
+}
+
+/// A commit as Git abbreviates it: at least four hex digits, lowercased.
+fn commit_prefix(text: String) -> Result<String, CliError> {
+    let valid = (4..=64).contains(&text.len()) && text.bytes().all(|b| b.is_ascii_hexdigit());
+    valid
+        .then(|| text.to_ascii_lowercase())
+        .ok_or(CliError::InvalidValue("COMMIT"))
+}
+
+pub(super) fn change(args: &mut Args) -> Result<ChangeCommand, CliError> {
+    let Some(verb) = args.verb() else {
+        return Ok(ChangeCommand::Log { commit: None });
+    };
+    Ok(match verb.to_str() {
+        Some("log") => ChangeCommand::Log {
+            commit: args.optional_text()?.map(commit_prefix).transpose()?,
+        },
+        _ => return Err(unknown("change", verb)),
     })
 }
 

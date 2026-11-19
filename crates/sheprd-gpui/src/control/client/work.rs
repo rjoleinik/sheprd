@@ -1,5 +1,6 @@
-//! `notes`, `memory`, `worktree`, `checkpoint`, `scripts`, `teleport`, and
-//! `fan-out`.
+//! `notes`, `memory`, `worktree`, `checkpoint`, `change`, `scripts`,
+//! `teleport`, and `fan-out`.
+mod change;
 mod checkpoint;
 mod here;
 mod memory;
@@ -18,6 +19,7 @@ use crate::{
         },
     },
 };
+pub(super) use change::change;
 pub(super) use checkpoint::checkpoint;
 pub(super) use memory::memory;
 use std::fmt::Write as _;
