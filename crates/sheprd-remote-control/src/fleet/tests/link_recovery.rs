@@ -76,6 +76,7 @@ async fn a_device_only_named_like_the_fleets_is_not_taken() {
         .add_with(
             NewDevice {
                 app: None,
+                fleet: None,
                 id: id.clone(),
                 name: "iPhone".into(),
                 public_key,

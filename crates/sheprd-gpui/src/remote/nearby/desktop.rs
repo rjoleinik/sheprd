@@ -125,6 +125,21 @@ impl Pairing {
     }
 }
 
+impl Pairing {
+    /// Hands the child what its claim asks of the fleet; it claims then.
+    pub(crate) fn claim(
+        &self,
+        fleet: Option<sheprd_remote_control::control::fleet::bluetooth::ClaimFleet>,
+    ) {
+        let Ok(line) = serde_json::to_string(&PairInput::Claim { fleet }) else {
+            return;
+        };
+        if self.inputs.try_send(line).is_err() {
+            tracing::warn!("the nearby claim could not be handed to the pairing");
+        }
+    }
+}
+
 /// Kills and waits for `child`, which this thread owns.
 fn reap(mut child: Child) {
     let _ = child.kill();

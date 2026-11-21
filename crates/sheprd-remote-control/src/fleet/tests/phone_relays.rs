@@ -113,6 +113,7 @@ async fn a_device_paired_later_cannot_take_a_linked_phones_keys() {
         .add(
             NewDevice {
                 app: None,
+                fleet: None,
                 id: direct.clone(),
                 name: "iPhone".into(),
                 public_key,
@@ -144,6 +145,7 @@ async fn another_devices_keys_are_never_set() {
         .add(
             NewDevice {
                 app: None,
+                fleet: None,
                 id: crate::control::DeviceId("direct".into()),
                 name: "iPhone".into(),
                 public_key,

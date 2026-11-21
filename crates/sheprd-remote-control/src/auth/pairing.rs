@@ -8,7 +8,7 @@ use super::{
     Error, PublicKey, Result, SECRET_LEN, constant_time_eq, decode_fixed, device_name, encode,
     random_bytes, random_id, sha256,
 };
-use crate::control::{DeviceId, Offer, PairingId, PairingState};
+use crate::control::{DeviceId, Offer, PairingId, PairingState, fleet::bluetooth::ApprovedFleet};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
@@ -45,6 +45,9 @@ pub(crate) struct NewDevice {
     /// installed from another computer; admitted by CORS while the device
     /// stays paired.
     pub(crate) app: Option<String>,
+    /// What a desktop's claim asked of the fleet, checked
+    /// (`fleet::bluetooth`); acted on only by an Allow that agrees to it.
+    pub(crate) fleet: Option<Box<crate::fleet::bluetooth::Claimed>>,
     pub(crate) id: DeviceId,
     pub(crate) name: String,
     pub(crate) public_key: PublicKey,
@@ -56,9 +59,19 @@ pub(crate) struct NewDevice {
 
 #[derive(Debug, Default)]
 pub(crate) struct Pairings {
+    /// What approved desktops learn about the fleet, oldest first.
+    fleets: VecDeque<(DeviceId, ApprovedFleet)>,
+    /// This computer's fleet, for the next nearby offer alone
+    /// ([`Pairings::offer_hint`]).
+    hint: Option<crate::control::fleet::bluetooth::Hint>,
     open: Option<Open>,
     /// Outcomes of finished claims, oldest first.
     outcomes: VecDeque<(ClaimId, PairingState)>,
+    /// The devices whose approval the fleet is still acting on, once per
+    /// answer acting: a claim reads as waiting until none is, so it never
+    /// learns it was approved before it learns what became of the fleet,
+    /// even when two answers race and one of them finds nothing to do.
+    settling: Vec<DeviceId>,
 }
 
 #[derive(Debug)]
@@ -134,6 +147,10 @@ impl Open {
                 code: code.clone(),
                 app: device.app.clone(),
                 ssh: device.ssh.is_some(),
+                fleet: device
+                    .fleet
+                    .as_deref()
+                    .map(crate::fleet::bluetooth::Claimed::asked),
             },
             Phase::Finished { state, .. } => state.clone(),
         }
@@ -230,6 +247,7 @@ impl Pairings {
         let claim = ClaimId(random_id()?);
         let device = NewDevice {
             app: None,
+            fleet: None,
             id: DeviceId(random_id()?),
             name,
             public_key,
@@ -256,6 +274,23 @@ impl Pairings {
             code,
             expires_ms: deadline_ms,
         })
+    }
+
+    /// Whether `token` would be taken by a claim now, without spending it:
+    /// what a claim checks before anything costly it carries, so a peer
+    /// without the token learns nothing and costs nothing.
+    pub(crate) fn holds(&mut self, token: &[u8; SECRET_LEN], now_ms: u64) -> bool {
+        let digest = sha256(&[token]);
+        let Some(open) = self.open.as_mut() else {
+            return false;
+        };
+        refresh(open, &mut self.outcomes, now_ms);
+        let nearby = open
+            .nearby
+            .as_ref()
+            .is_some_and(|nearby| constant_time_eq(&nearby.digest, &digest) && nearby.live(now_ms));
+        let qr = constant_time_eq(&open.token_digest, &digest) && now_ms < open.token_expires_ms;
+        matches!(open.phase, Phase::Waiting) && (nearby || qr)
     }
 
     /// Whether a pairing dialog is open and nobody claimed it: what nearby
@@ -321,6 +356,88 @@ impl Pairings {
         {
             device.ssh = Some(key);
         }
+    }
+
+    /// Keeps what a desktop's `claim` asked of the fleet, checked.
+    pub(crate) fn claimed_fleet(
+        &mut self,
+        claim: &ClaimId,
+        fleet: crate::fleet::bluetooth::Claimed,
+    ) {
+        if let Some(Open {
+            phase: Phase::Claimed {
+                claim: id, device, ..
+            },
+            ..
+        }) = self.open.as_mut()
+            && id == claim
+        {
+            device.fleet = Some(Box::new(fleet));
+        }
+    }
+
+    /// The device the claim on pairing `id` would become, and what it
+    /// asked of the fleet, while it waits for the person's answer.
+    pub(crate) fn asked_fleet(
+        &self,
+        id: &PairingId,
+    ) -> Option<(DeviceId, crate::fleet::bluetooth::Claimed)> {
+        match self.open.as_ref() {
+            Some(Open {
+                id: open,
+                phase: Phase::Claimed { device, .. },
+                ..
+            }) if open == id => device
+                .fleet
+                .clone()
+                .map(|fleet| (device.id.clone(), *fleet)),
+            _ => None,
+        }
+    }
+
+    /// Names this computer's fleet in the next nearby offer, and that one
+    /// only: an offer made where the fleet was not read names none.
+    pub(crate) fn offer_hint(&mut self, hint: Option<crate::control::fleet::bluetooth::Hint>) {
+        self.hint = hint;
+    }
+
+    pub(crate) fn take_hint(&mut self) -> Option<crate::control::fleet::bluetooth::Hint> {
+        self.hint.take()
+    }
+
+    /// Holds `device`'s approval back from its claim until
+    /// [`Pairings::settled_fleet`].
+    pub(crate) fn settling_fleet(&mut self, device: DeviceId) {
+        self.settling.push(device);
+    }
+
+    /// Lets `device`'s claim learn it was approved, with what became of
+    /// the fleet, kept for the last few devices approved.
+    pub(crate) fn settled_fleet(&mut self, device: DeviceId, fleet: Option<ApprovedFleet>) {
+        if let Some(index) = self.settling.iter().position(|held| *held == device) {
+            self.settling.swap_remove(index);
+        }
+        let Some(fleet) = fleet else {
+            return;
+        };
+        if self.fleets.len() == REMEMBERED_OUTCOMES {
+            self.fleets.pop_front();
+        }
+        self.fleets.push_back((device, fleet));
+    }
+
+    /// Whether the fleet is still acting on `device`'s approval.
+    pub(crate) fn fleet_settling(&self, device: &DeviceId) -> bool {
+        self.settling.contains(device)
+    }
+
+    /// What the approved `device` learns about the fleet, if anything.
+    pub(crate) fn fleet_for(&self, device: &DeviceId) -> Option<ApprovedFleet> {
+        self.fleets
+            .iter()
+            .rev()
+            .find(|(id, _)| id == device)
+            .map(|(_, fleet)| fleet.clone())
     }
 
     /// Notes that `claim` came from an app installed from another computer,

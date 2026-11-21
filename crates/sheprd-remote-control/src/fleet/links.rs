@@ -208,6 +208,7 @@ pub(crate) fn apply(state: &State, fleet: &Fleet, now_ms: u64) -> Result<bool> {
         auth.devices_mut().add_with(
             NewDevice {
                 app: None,
+                fleet: None,
                 id: key,
                 name: device.name.clone(),
                 public_key: device.public_key.clone(),

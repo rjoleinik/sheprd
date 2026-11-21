@@ -107,6 +107,8 @@ fn the_code_shows_and_bluetooth_may_go_once_it_does(cx: &mut TestAppContext) {
             PairOutput::Code {
                 code: "428913".into(),
                 computer: "Studio Mac".into(),
+                fleet: None,
+                pairing: "p".into(),
             },
             window,
             cx,
@@ -118,6 +120,10 @@ fn the_code_shows_and_bluetooth_may_go_once_it_does(cx: &mut TestAppContext) {
             },
             code: "428913".into(),
             claimed,
+            // No fleet read here: nothing to choose, so the claim went.
+            offer: super::fleet::Offer::None,
+            pairing: "p".into(),
+            decided: true,
         };
         assert_eq!(setup(view).step, showing(false));
         view.nearby_output(PairOutput::Claimed, window, cx);

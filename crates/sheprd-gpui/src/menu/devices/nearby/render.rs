@@ -1,7 +1,7 @@
 //! Drawing Nearby Sheprd: the computers found, then the code both screens
 //! show, then the wait for the other computer's answer.
 
-use super::{Found, NearbySetup, Step};
+use super::{Found, NearbySetup, Step, fleet::Offer};
 use crate::SheprdWindow;
 use crate::fonts::StyledFont;
 use crate::i18n::fl;
@@ -58,7 +58,12 @@ impl SheprdWindow {
                 computer,
                 code,
                 claimed,
-            } => body.child(self.nearby_code(computer, code, *claimed)),
+                offer,
+                decided,
+                ..
+            } => body
+                .child(self.nearby_code(computer, code, *claimed))
+                .children(self.nearby_fleet(computer, offer, *decided, cx)),
             Step::Saving(name) => body.child(
                 div()
                     .debug_selector(|| "nearby-setup-status".into())
@@ -199,5 +204,85 @@ impl SheprdWindow {
             } else {
                 fl!("devices-nearby-claiming", computer = computer.name.as_str())
             }))
+    }
+
+    /// What pairing does for the fleet: a note, or the choice the claim
+    /// waits for.
+    fn nearby_fleet(
+        &self,
+        computer: &Found,
+        offer: &Offer,
+        decided: bool,
+        cx: &mut Context<Self>,
+    ) -> Option<Div> {
+        let theme = &self.theme;
+        let name = computer.name.as_str();
+        let text = match offer {
+            Offer::None => return None,
+            Offer::Same => fl!("devices-nearby-fleet-same", computer = name),
+            Offer::Other(_) => fl!("devices-nearby-fleet-other", computer = name),
+            Offer::Invite(ours) => fl!(
+                "devices-nearby-fleet-invite",
+                computer = name,
+                computers = ours.computers,
+                hosts = ours.hosts
+            ),
+            Offer::Join(theirs) => fl!(
+                "devices-nearby-fleet-join",
+                computer = name,
+                computers = theirs.computers,
+                hosts = theirs.hosts
+            ),
+            Offer::Found => fl!("devices-nearby-fleet-found", computer = name),
+        };
+        let yes = match offer {
+            Offer::Invite(_) => fl!("devices-nearby-fleet-add"),
+            Offer::Join(_) => fl!("devices-nearby-fleet-join-button"),
+            _ => fl!("devices-nearby-fleet-create"),
+        };
+        let choice = |id: &'static str, label: String, primary: bool, join: bool| {
+            div()
+                .id(id)
+                .debug_selector(move || id.into())
+                .role(Role::Button)
+                .aria_label(SharedString::from(label.clone()))
+                .px(px(12.))
+                .py(px(6.))
+                .rounded(px(crate::config::corners::CONTROL))
+                .bg(rgb(theme.active))
+                .when(primary, |button| {
+                    button.text_color(crate::menu::accent(theme))
+                })
+                .cursor_pointer()
+                .child(label)
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    cx.stop_propagation();
+                    this.choose_nearby_fleet(join, cx);
+                }))
+        };
+        let asking = offer.asks() && !decided;
+        Some(
+            div()
+                .debug_selector(|| "nearby-setup-fleet".into())
+                .flex()
+                .flex_col()
+                .gap(px(8.))
+                .child(div().text_color(rgb(theme.subtext())).child(text))
+                .when(asking, |line| {
+                    line.child(
+                        div()
+                            .flex()
+                            .flex_wrap()
+                            .gap(px(8.))
+                            .child(choice("nearby-setup-fleet-yes", yes, true, true))
+                            .child(choice(
+                                "nearby-setup-fleet-no",
+                                fl!("devices-nearby-fleet-pair-only"),
+                                false,
+                                false,
+                            )),
+                    )
+                }),
+        )
     }
 }

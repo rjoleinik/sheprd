@@ -8,6 +8,7 @@ use p256::ecdsa::{SigningKey, VerifyingKey, signature::Signer};
 mod access_floor;
 mod admission;
 mod base_lifetime;
+mod bluetooth;
 mod bounds;
 mod checkpoint;
 mod convergence;

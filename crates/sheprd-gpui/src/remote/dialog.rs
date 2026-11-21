@@ -15,6 +15,7 @@ use sheprd_remote_control::control::Request;
 use std::{sync::Arc, time::Duration};
 
 mod addresses;
+mod computer_fleet;
 mod fleet_line;
 mod hosts;
 mod share_github;
@@ -211,6 +212,12 @@ impl SheprdWindow {
             dialog.fleet_choice = (allow && phone && dialog.join_fleet)
                 .then(|| crate::fleet::Fleet::member_of(cx))
                 .flatten();
+            // A computer's claim: the fleet its line agreed to, shown
+            // ticked, and nothing for a phone, which joins on its own.
+            let agreed = computer_fleet::line(dialog.pairing.phase(), cx)
+                .filter(|_| allow && dialog.join_fleet)
+                .and_then(|line| line.agrees().map(str::to_owned));
+            dialog.pairing.set_fleet(agreed);
             dialog.pairing.answer_with_hosts(allow, ticked);
             cx.notify();
         }
@@ -612,6 +619,10 @@ impl SheprdWindow {
                     .flatten(),
             )
             .children((!ssh).then(|| self.pairing_fleet(!waiting, cx)).flatten())
+            .children(
+                ssh.then(|| self.pairing_computer_fleet(&device, !waiting, cx))
+                    .flatten(),
+            )
             .child(
                 div()
                     .flex()

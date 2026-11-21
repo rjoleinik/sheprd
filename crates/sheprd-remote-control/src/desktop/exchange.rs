@@ -9,7 +9,7 @@ use crate::auth::{
     self, PublicKey, decode_fixed, encode,
     nearby::{self, code, commit, fingerprint_bytes, shared_secret, transcript},
 };
-use crate::control::{NearbyRevealed, NearbyStarted, host_relay::Info};
+use crate::control::{NearbyRevealed, NearbyStarted, fleet::bluetooth::Hint, host_relay::Info};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use p256::{SecretKey, elliptic_curve::zeroize::Zeroizing};
 use serde::Deserialize;
@@ -35,6 +35,8 @@ pub(crate) struct Opened {
     pub(crate) token: Zeroizing<[u8; 32]>,
     /// How to reach it through its relays, when it listens on any.
     pub(crate) relay: Option<Info>,
+    /// Its fleet, when it is a computer member of one.
+    pub(crate) fleet: Option<Hint>,
 }
 
 #[derive(Deserialize)]
@@ -42,6 +44,8 @@ struct Sealed {
     token: String,
     #[serde(default)]
     relay: Option<Info>,
+    #[serde(default)]
+    fleet: Option<Hint>,
 }
 
 /// An answer that is an error rather than the step's result.
@@ -125,6 +129,7 @@ impl Exchange {
             fingerprint,
             token: Zeroizing::new(token),
             relay: sealed.relay.filter(Info::valid),
+            fleet: sealed.fleet.filter(Hint::valid),
         })
     }
 }

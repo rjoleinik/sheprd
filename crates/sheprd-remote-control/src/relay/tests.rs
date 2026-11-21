@@ -307,6 +307,7 @@ fn a_nearby_offer_names_the_relays_and_hands_its_token_to_them_once() {
         token: "t".into(),
         origins: &[],
         relay: Some(&info),
+        fleet: None,
     })
     .unwrap();
     assert_eq!(offer["relay"]["route"], info.route);
@@ -314,6 +315,7 @@ fn a_nearby_offer_names_the_relays_and_hands_its_token_to_them_once() {
         token: "t".into(),
         origins: &[],
         relay: None,
+        fleet: None,
     })
     .unwrap();
     assert!(without.get("relay").is_none());

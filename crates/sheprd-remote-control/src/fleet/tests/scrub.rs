@@ -34,6 +34,7 @@ fn paired_and_proved(a: &Node, b: &Node) -> crate::control::DeviceId {
         .add(
             crate::auth::NewDevice {
                 app: None,
+                fleet: None,
                 id: id.clone(),
                 name: "a over Bluetooth".into(),
                 public_key: crate::auth::PublicKey::parse(

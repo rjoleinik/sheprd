@@ -26,6 +26,8 @@ mod aging;
 #[cfg(unix)]
 mod atomic;
 #[cfg(unix)]
+mod bluetooth;
+#[cfg(unix)]
 mod catch_up;
 #[cfg(unix)]
 mod earlier_shapes;

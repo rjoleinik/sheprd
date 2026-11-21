@@ -23,3 +23,28 @@ devices-nearby-lost = Lost { $computer } over Bluetooth before the codes were sh
 devices-nearby-no-herdr = { $computer } was paired, but Herdr does not answer there. Open Sheprd on it, then pair again.
 devices-nearby-no-answer = { $computer } was paired, but could not be reached through its relays. Check that Remote Login is on there and that its relays are listening.
 devices-nearby-save-failed = { $computer } was paired, but could not be saved: { $error }
+
+## The fleet, once both screens show the code. $computers and $hosts count
+## the fleet's computers and the hosts it shares.
+
+devices-nearby-fleet-invite = Add { $computer } to your fleet? It will open terminals on your fleet's { $hosts ->
+    [one] one host
+   *[other] { $hosts } hosts
+}, and your { $computers ->
+    [one] computer
+   *[other] { $computers } computers
+} will open terminals on it.
+devices-nearby-fleet-join = Join { $computer }'s fleet? This computer will open terminals on its { $hosts ->
+    [one] one host
+   *[other] { $hosts } hosts
+}, and its { $computers ->
+    [one] computer
+   *[other] { $computers } computers
+} will open terminals here.
+devices-nearby-fleet-found = Neither computer is in a fleet. Create one, so this computer and { $computer } reach each other both ways and share the hosts either adds?
+devices-nearby-fleet-same = { $computer } is already in your fleet.
+devices-nearby-fleet-other = { $computer } is in another fleet, so the two are paired only.
+devices-nearby-fleet-add = Add to fleet
+devices-nearby-fleet-join-button = Join fleet
+devices-nearby-fleet-create = Create a fleet
+devices-nearby-fleet-pair-only = Pair only

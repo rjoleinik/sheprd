@@ -441,12 +441,16 @@ async fn cors(Extract(state): Extract<Shared>, request: Request, next: Next) -> 
 /// How a phone hears of a fleet failure: what it sent is refused, the
 /// fleet is not there, or this computer failed.
 fn fleet_status(error: &crate::fleet::Error) -> StatusCode {
-    use crate::fleet::{Error, joins};
+    use crate::fleet::{Error, bluetooth, joins};
     match error {
         Error::NoFleet => StatusCode::CONFLICT,
         Error::Joins(joins::Error::Full) => StatusCode::TOO_MANY_REQUESTS,
         Error::Joins(joins::Error::Removed) => StatusCode::FORBIDDEN,
         Error::Joins(_) | Error::Log(_) => StatusCode::BAD_REQUEST,
+        Error::Bluetooth(bluetooth::Error::NotClaimant | bluetooth::Error::Removed) => {
+            StatusCode::FORBIDDEN
+        }
+        Error::Bluetooth(_) => StatusCode::CONFLICT,
         _ => StatusCode::INTERNAL_SERVER_ERROR,
     }
 }

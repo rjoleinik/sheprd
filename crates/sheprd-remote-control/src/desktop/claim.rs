@@ -6,6 +6,7 @@
 use super::{Error, Keys, Opened, Result, record::Record};
 use crate::{
     auth::{self, encode},
+    control::fleet::bluetooth::{ApprovedFleet, ClaimFleet},
     ssh_access::{Login, valid_user},
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -51,6 +52,8 @@ pub(crate) struct Claimant<'a> {
     pub(crate) name: &'a str,
     /// `ssh-ed25519 BASE64`.
     pub(crate) ssh_key: &'a str,
+    /// What the claim asks of the fleet, beside pairing.
+    pub(crate) fleet: Option<&'a ClaimFleet>,
 }
 
 /// An allowed claim: the machine to keep, and how to log in to it.
@@ -58,6 +61,8 @@ pub(crate) struct Claimant<'a> {
 pub(crate) struct Allowed {
     pub(crate) record: Record,
     pub(crate) login: Login,
+    /// What became of the fleet, checked ([`super::joining::checked`]).
+    pub(crate) fleet: Option<ApprovedFleet>,
 }
 
 /// Claims the computer `opened` describes; `claimed` runs once its user is
@@ -111,8 +116,9 @@ pub(crate) async fn claim(
         return Err(Error::CodeMismatch);
     }
     claimed();
-    let login = answer(&mut sender, &claim.claim).await?;
+    let (login, fleet) = answer(&mut sender, &claim.claim).await?;
     drop(connection);
+    let fleet = super::joining::checked(opened, claimant.fleet, fleet);
     Ok(Allowed {
         record: Record {
             computer: opened.computer.clone(),
@@ -124,6 +130,7 @@ pub(crate) async fn claim(
             opening: false,
         },
         login,
+        fleet,
     })
 }
 
@@ -145,6 +152,7 @@ fn body(opened: &Opened, claimant: &Claimant<'_>) -> Result<Vec<u8>> {
             "tunnel": encode(&claimant.keys.tunnel.identity().x25519()),
         },
         "ssh": { "public_key": claimant.ssh_key },
+        "fleet": claimant.fleet,
     })
     .to_string()
     .into_bytes())
@@ -162,6 +170,8 @@ enum ClaimState {
     Approved {
         #[serde(default)]
         ssh: Option<Login>,
+        #[serde(default)]
+        fleet: Option<ApprovedFleet>,
     },
     Claimed,
     Denied,
@@ -169,14 +179,20 @@ enum ClaimState {
 }
 
 /// Asks about the claim until its user answers.
-async fn answer(sender: &mut http1::SendRequest<Full<Bytes>>, claim: &str) -> Result<Login> {
+async fn answer(
+    sender: &mut http1::SendRequest<Full<Bytes>>,
+    claim: &str,
+) -> Result<(Login, Option<ApprovedFleet>)> {
     let deadline = Instant::now() + ANSWER;
     let path = format!("/api/pair/claim/{claim}");
     while Instant::now() < deadline {
         let body = request(sender, Method::GET, &path, None).await?;
         match serde_json::from_slice(&body).map_err(|_| Error::ClaimFormat)? {
-            ClaimState::Approved { ssh: Some(login) } => return checked(login),
-            ClaimState::Approved { ssh: None } => return Err(Error::NoLogin),
+            ClaimState::Approved {
+                ssh: Some(login),
+                fleet,
+            } => return Ok((checked(login)?, fleet)),
+            ClaimState::Approved { ssh: None, .. } => return Err(Error::NoLogin),
             ClaimState::Claimed => tokio::time::sleep(POLL).await,
             ClaimState::Denied => return Err(Error::Denied),
             ClaimState::Expired => return Err(Error::Expired),

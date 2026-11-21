@@ -148,6 +148,7 @@ async fn a_nearby_desktop_off_the_network_pairs_and_reaches_ssh_through_a_relay(
         keys: &keys,
         name: "Laptop",
         ssh_key: &ssh_key,
+        fleet: None,
     };
     let (allowed, ()) = tokio::join!(claim::claim(&opened, &claimant, || {}), allow(&other));
     let allowed = allowed.unwrap();
@@ -213,6 +214,7 @@ async fn a_denied_desktop_learns_so_and_gets_no_key_in() {
         keys: &keys,
         name: "Laptop",
         ssh_key: &ssh_key,
+        fleet: None,
     };
     let deny = async {
         for _ in 0..200 {
@@ -260,6 +262,7 @@ async fn a_claim_is_refused_before_its_token_is_spent_while_ssh_is_off() {
         keys: &keys,
         name: "Laptop",
         ssh_key: &ssh_key,
+        fleet: None,
     };
     let result = claim::claim(&opened, &claimant, || {}).await;
     assert!(

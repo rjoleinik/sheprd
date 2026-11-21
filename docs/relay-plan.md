@@ -1063,6 +1063,50 @@ through. B's daemon admits that tunnel key, sees that the device has an
 SSH key, splices the session to its SSH server instead of serving the
 API, and marks the device seen.
 
+**Joining the fleet in the same step** (built). Pairing leaves both
+computers in one fleet, whichever of them was in it (Fleet, Joining):
+
+- B names its fleet in the sealed offer while it is a live computer
+  member (`fleet::bluetooth::hint`: the id, and its computer and host
+  counts for the words, never trusted).
+- Once both screens show the code, A's page knows both fleets and the
+  child waits for its choice (`PairInput::Claim`) before it claims:
+
+  | A | B | A's page offers | The claim carries |
+  | --- | --- | --- | --- |
+  | In fleet F | In none | Add to fleet, or Pair only | `Invite(F)` |
+  | In none | In fleet G | Join fleet, or Pair only | `Join`: A's bundle for G |
+  | In none | In none | Create a fleet, or Pair only | `Invite` of the fleet A just founded |
+  | In F | In F | Says so | Nothing |
+  | In F | In G | Says B is in another fleet | `Invite(F)`, which B shows and cannot take |
+
+- A `Join` is A's bundle with its join signature, as an `Admit` carries
+  it, and a second signature by the same fleet key over the fleet, the
+  pairing's token hashed (`bluetooth::pairing_digest`), and the bundle
+  (`bluetooth::binding_message`). A's daemon makes both
+  (`Ask::Joining`), since the child holds no fleet key. B checks a
+  `Join` before it spends the token, and reads none of it for a claim
+  whose token it does not hold: the binding against this token, the
+  join signature for its own fleet, no tombstone, and the bundle's dial,
+  tunnel, and SSH keys equal to the very keys the claim carries. A
+  bundle copied from a log, or from another pairing, never binds.
+- B's dialog says what Allow does: "Also add Laptop to your fleet", or
+  "Join Laptop's fleet", a switch ticked by default; or a note when
+  both are in that fleet, or when B is in another, where Allow pairs
+  only. Allow sends the fleet the switch showed (`Approve.fleet`), and
+  the daemon acts only when it still matches: it signs `Admit`
+  (`Method::Bluetooth`), or its own bundle for A's fleet, bound to the
+  token (`ApprovedFleet::Joining`). The claim reads as waiting until
+  that is done, so A never takes the approval without the fleet's part.
+- A's child checks the answer before Sheprd sees it: a bundle must check
+  for A's fleet and this token and name the certificate authority,
+  route, and tunnel identity the code covered. Then, over the SSH the
+  pairing opened, A's Sheprd admits B and hands the log over, as Invite
+  does, or takes B's log, which A's daemon keeps only because it admits
+  A. A failure there shows in Settings > Fleet; the two stay paired.
+- From then on both are members, each a host of the other through the
+  relays, with every host the fleet shares (phase 2's grants).
+
 Not yet: Linux and Windows helpers that scan, sharing a relay record
 when B's relays change, and racing the relays. As with SSH machines,
 `git` and a typed `ssh` do not use the proxy.
@@ -1993,8 +2037,12 @@ manual multi-machine and phone steps left unticked in its QA list.
      the phone it approved, matched by the daemon's device id, when that
      phone asks to join within ten minutes; no other join is admitted
      through it.
-   - **Left:** joining over Bluetooth in one step (today: pair, then Invite over
-     the SSH that pairing opened, which proves the same), `relay-connect`'s race with direct tunnels and
+   - **Joining over Bluetooth** (built): picking a nearby Sheprd,
+     comparing the code, and Allow on the other computer leave both in
+     one fleet, whichever was in it, or found one from Add Device; the
+     claim's bundle is bound to the pairing's token (Adding a nearby
+     Sheprd from another network, Joining the fleet in the same step).
+   - **Left:** `relay-connect`'s race with direct tunnels and
      `desktop/paths` for the host indicator, history, and native
      screenshots.
 4. **`sheprd-relay-agent` in Sheprd:** install and update over SSH,

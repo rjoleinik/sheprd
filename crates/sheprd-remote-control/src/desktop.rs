@@ -13,17 +13,30 @@
 //!
 //! - [`keys`]: this computer's dial, tunnel, and SSH keys, made once.
 //! - [`files`]: the private files they and the records live in.
+//! - [`joining`]: what an approved claim says about the fleet, checked.
 
 mod claim;
 pub(crate) mod connect;
 mod error;
 mod exchange;
 pub(crate) mod files;
+mod joining;
 pub(crate) mod keys;
 mod pair;
 pub(crate) mod record;
 
 pub use error::{Error, Result};
+
+/// The steps `desktop-pair` takes, for other modules' tests to run them
+/// against a daemon of their own: Unix only, as those tests are.
+#[cfg(all(test, unix))]
+pub(crate) mod for_tests {
+    pub(crate) use super::{
+        claim::{Allowed, Claimant, claim},
+        exchange::{Exchange, Opened},
+        joining::checked,
+    };
+}
 
 use exchange::Opened;
 use keys::Keys;

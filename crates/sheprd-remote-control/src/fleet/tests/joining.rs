@@ -80,6 +80,7 @@ async fn joining_supersedes_a_pairing_here_so_removal_takes_every_way_in() {
         .add(
             crate::auth::NewDevice {
                 app: None,
+                fleet: None,
                 id: legacy.clone(),
                 name: "b over Bluetooth".into(),
                 public_key: crate::auth::PublicKey::parse(
@@ -151,6 +152,7 @@ async fn removing_a_member_revokes_a_pairing_whose_key_it_proved() {
         .add(
             crate::auth::NewDevice {
                 app: None,
+                fleet: None,
                 id: legacy.clone(),
                 name: "b over Bluetooth".into(),
                 public_key: crate::auth::PublicKey::parse(
@@ -244,6 +246,7 @@ async fn a_removed_member_takes_pairings_with_every_key_it_proved() {
         .add(
             crate::auth::NewDevice {
                 app: None,
+                fleet: None,
                 id: legacy.clone(),
                 name: "b before it rotated".into(),
                 public_key: crate::auth::PublicKey::parse(

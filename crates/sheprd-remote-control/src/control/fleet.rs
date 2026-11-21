@@ -30,6 +30,7 @@
 //! and the iOS app's Swift copy is checked against the vectors
 //! `tests/vectors.rs` writes.
 
+pub mod bluetooth;
 mod body;
 mod error;
 mod fold;

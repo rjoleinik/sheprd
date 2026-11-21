@@ -11,6 +11,7 @@
 //! Nothing here holds a key or decides anything: the child and the other
 //! computer's daemon do.
 
+mod fleet;
 mod render;
 
 use super::Page;
@@ -19,7 +20,10 @@ use crate::i18n::fl;
 use crate::remote::nearby::{self, Event, Radio, Scanner, Station, desktop::Pairing};
 use gpui::{prelude::*, *};
 use sheprd_client::{HostProbe, SavedHost};
-use sheprd_remote_control::control::desktop::{PairOutput, frame_bytes};
+use sheprd_remote_control::control::{
+    desktop::{PairOutput, frame_bytes},
+    fleet::bluetooth::ApprovedFleet,
+};
 use std::time::Duration;
 
 /// How often the page reads what the helper and the child said.
@@ -64,11 +68,15 @@ enum Step {
     /// The code exchange is under way.
     Exchanging(Found),
     /// Both screens show `code`; `claimed` once the other computer asks
-    /// its user.
+    /// its user. The claim waits until the fleet `offer` is `decided`.
     Code {
         computer: Found,
         code: String,
         claimed: bool,
+        offer: fleet::Offer,
+        /// The pairing's token, hashed, for a bundle bound to it.
+        pairing: String,
+        decided: bool,
     },
     /// Allowed: checking the machine through its relays, then saving it.
     Saving(String),
@@ -76,7 +84,7 @@ enum Step {
 
 /// A number no attempt in this process had before: windows and reopened
 /// pages share it.
-fn next_attempt() -> u64 {
+pub(super) fn next_attempt() -> u64 {
     static ATTEMPTS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
     ATTEMPTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
@@ -257,7 +265,12 @@ impl SheprdWindow {
                 };
                 Station::send(cx, nearby::peripheral_frame(&found.peripheral, &data));
             }
-            PairOutput::Code { code, computer } => {
+            PairOutput::Code {
+                code,
+                computer,
+                fleet,
+                pairing,
+            } => {
                 let Some(found) = setup.step.computer().cloned() else {
                     return;
                 };
@@ -268,21 +281,29 @@ impl SheprdWindow {
                     },
                     code,
                     claimed: false,
+                    offer: fleet::offer(cx, fleet.as_ref()),
+                    pairing,
+                    decided: false,
                 };
+                self.nearby_claim_unasked();
             }
             PairOutput::Claimed => {
                 if let Step::Code { claimed, .. } = &mut setup.step {
                     *claimed = true;
                 }
             }
-            PairOutput::Paired { target, label } => {
+            PairOutput::Paired {
+                target,
+                label,
+                fleet,
+            } => {
                 let label = crate::notifications::safe_text(&label, 64);
                 if let Some(found) = setup.step.computer() {
                     Station::send(cx, nearby::disconnect(&found.peripheral));
                 }
                 setup.pairing = None;
                 setup.step = Step::Saving(label.clone());
-                self.save_nearby(target, label, window, cx);
+                self.save_nearby(target, label, fleet, window, cx);
             }
             PairOutput::Failed { message } => {
                 setup.error = Some(fl!(
@@ -340,6 +361,7 @@ impl SheprdWindow {
         &mut self,
         target: String,
         label: String,
+        fleet: Option<ApprovedFleet>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -348,12 +370,20 @@ impl SheprdWindow {
             .nearby_setup
             .as_ref()
             .map_or(0, |setup| setup.attempt);
+        let saving = target.clone();
         let saved = cx
             .background_executor()
-            .spawn(async move { save(&target, &label) });
+            .spawn(async move { save(&saving, &label) });
         cx.spawn_in(window, async move |this, cx| {
             let outcome = saved.await;
             let _ = this.update_in(cx, |this, window, cx| {
+                // Paired: the fleet finishes over the SSH the pairing opened,
+                // whatever this page does next. The other computer already
+                // acted on its Allow, so a Herdr check or a device save that
+                // failed here never drops it; `paired` retries its own SSH.
+                if let Some(fleet) = fleet {
+                    crate::fleet::bluetooth::paired(cx, target, fleet);
+                }
                 let Some(setup) = &mut this.menu.nearby_setup else {
                     return;
                 };

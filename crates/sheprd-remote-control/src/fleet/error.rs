@@ -3,6 +3,8 @@ pub enum Error {
     // keep-sorted start
     #[error(transparent)]
     Auth(#[from] crate::auth::Error),
+    #[error(transparent)]
+    Bluetooth(#[from] super::bluetooth::Error),
     #[error("the fleet's files are busy: another update, or the daemon starting, holds them")]
     Busy,
     #[error(transparent)]

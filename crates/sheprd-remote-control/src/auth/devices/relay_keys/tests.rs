@@ -32,6 +32,7 @@ fn mixed(seed: u8, other: u8) -> RelayKeys {
 fn device(id: &str, relay: Option<RelayKeys>) -> NewDevice {
     NewDevice {
         app: None,
+        fleet: None,
         id: DeviceId(id.into()),
         name: "iPhone".into(),
         public_key: key(1),

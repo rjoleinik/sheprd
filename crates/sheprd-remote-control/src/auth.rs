@@ -394,6 +394,12 @@ impl Auth {
         Ok(Some(Login::here(&self.ssh_access()?.host_key_dir)?))
     }
 
+    /// The open pairing, for what a desktop's claim asks of the fleet
+    /// (`fleet::bluetooth`).
+    pub(crate) fn pairings(&mut self) -> &mut Pairings {
+        &mut self.pairings
+    }
+
     /// Keeps the SSH key a desktop sent with `claim`.
     pub(crate) fn claimed_ssh(&mut self, claim: &ClaimId, key: SshKey) {
         self.pairings.claimed_ssh(claim, key);
@@ -514,7 +520,9 @@ impl Auth {
         }
         let token = random_bytes::<SECRET_LEN>()?;
         let relay = self.relay_offer.as_ref();
-        let (revealed, code) = started.reveal(nonce, fingerprint, &token, origins, relay)?;
+        let fleet = self.pairings.take_hint();
+        let (revealed, code) =
+            started.reveal(nonce, fingerprint, &token, origins, relay, fleet.as_ref())?;
         self.pairings.set_nearby(&token, code, now_ms)?;
         if relay.is_some() {
             self.relay_pairing = Some(token);
@@ -831,6 +839,7 @@ impl Auth {
         self.devices.add_with(
             NewDevice {
                 app: None,
+                fleet: None,
                 id: id.clone(),
                 name,
                 public_key,

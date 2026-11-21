@@ -57,6 +57,10 @@ pub(super) struct ClaimRequest {
     /// through the relays (`crate::ssh_access`): its `ssh-ed25519` key.
     #[serde(default)]
     ssh: Option<SshRequest>,
+    /// That desktop asking to join this computer's fleet, or inviting this
+    /// computer into its own (`crate::fleet::bluetooth`).
+    #[serde(default)]
+    fleet: Option<crate::control::fleet::bluetooth::ClaimFleet>,
 }
 
 #[derive(Deserialize)]
@@ -89,6 +93,7 @@ pub(super) async fn claim(
         .map(|origin| app_origin(origin).ok_or(ApiError::Invalid("the app's origin is not valid")))
         .transpose()?;
     let ssh = desktop_key(&state, request.ssh.as_ref(), request.relay.as_ref()).await?;
+    let fleet = claimed_fleet(&state, &request, ssh.as_ref()).await?;
     let claim = with_auth(&state, move |auth| {
         if ssh.is_some() {
             auth.ssh_access()?;
@@ -105,6 +110,9 @@ pub(super) async fn claim(
         }
         if let Some(key) = ssh {
             auth.claimed_ssh(&claim.id, key);
+        }
+        if let Some(fleet) = fleet {
+            auth.pairings().claimed_fleet(&claim.id, fleet);
         }
         if let Some(relay) = request.relay {
             let keys = crate::auth::devices::RelayKeys {
@@ -160,6 +168,43 @@ async fn desktop_key(
     Ok(Some(key))
 }
 
+/// What a desktop's claim asks of the fleet, checked before its token is
+/// spent: only a desktop, which sends its SSH and relay keys, asks, and a
+/// join must carry those very keys, bound to this claim's token.
+async fn claimed_fleet(
+    state: &Shared,
+    request: &ClaimRequest,
+    ssh: Option<&crate::ssh_access::SshKey>,
+) -> Result<Option<crate::fleet::bluetooth::Claimed>, ApiError> {
+    let (Some(asked), Some(fleet)) = (request.fleet.clone(), state.fleet.clone()) else {
+        return Ok(None);
+    };
+    let (Some(ssh), Some(relay)) = (ssh.cloned(), request.relay.as_ref()) else {
+        return Err(ApiError::Invalid("only a desktop asks to join a fleet"));
+    };
+    let token: [u8; 32] = crate::auth::decode_fixed(request.token.expose_secret())
+        .map_err(|_| crate::auth::Error::InvalidToken)?;
+    // Nothing the fleet part carries is read for a peer without the token.
+    let holds = with_auth(state, move |auth| {
+        Ok(auth.pairings().holds(&token, now_ms()))
+    })
+    .await?;
+    if !holds {
+        return Err(crate::auth::Error::InvalidToken.into());
+    }
+    let relay = crate::auth::devices::RelayKeys {
+        dial: relay.dial.clone(),
+        tunnel: relay.tunnel.clone(),
+    };
+    tokio::task::spawn_blocking(move || {
+        crate::fleet::bluetooth::check_claim(&fleet, asked, &token, &relay, &ssh)
+    })
+    .await
+    .map_err(|_| ApiError::Invalid("the request was interrupted"))?
+    .map(Some)
+    .map_err(ApiError::from)
+}
+
 /// `origin` when it is an `https://` origin as a browser sends it: a host
 /// and an optional port, nothing more, at most 255 bytes.
 pub(super) fn app_origin(origin: &str) -> Option<String> {
@@ -176,15 +221,26 @@ pub(super) async fn claim_status(
     State(state): State<Shared>,
     Path(claim): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
-    let (pairing, login) = with_auth(&state, move |auth| {
+    let (pairing, login, fleet) = with_auth(&state, move |auth| {
         let pairing = auth.claim_status(&ClaimId(claim), now_ms())?;
         // A desktop learns who to log in as, and which host keys to pin,
         // only once allowed.
-        let login = match &pairing {
-            PairingState::Approved { device } => auth.desktop_login(device)?,
-            _ => None,
+        // A desktop learns it was approved only once the fleet acted on
+        // the approval, with what came of it.
+        let pairing = match pairing {
+            PairingState::Approved { device } if auth.pairings().fleet_settling(&device) => {
+                PairingState::Waiting { expires_in_ms: 0 }
+            }
+            pairing => pairing,
         };
-        Ok((pairing, login))
+        let (login, fleet) = match &pairing {
+            PairingState::Approved { device } => (
+                auth.desktop_login(device)?,
+                auth.pairings().fleet_for(device),
+            ),
+            _ => (None, None),
+        };
+        Ok((pairing, login, fleet))
     })
     .await?;
     Ok(Json(match pairing {
@@ -198,6 +254,9 @@ pub(super) async fn claim_status(
             });
             if let Some(login) = login {
                 approved["ssh"] = json!(login);
+            }
+            if let Some(fleet) = fleet {
+                approved["fleet"] = json!(fleet);
             }
             approved
         }

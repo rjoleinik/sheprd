@@ -38,6 +38,22 @@ pub(crate) fn answer(state: &State, fleet: &Fleet, ask: Ask, now_ms: u64) -> Res
                 signature: sync::text(&signature.to_bytes()),
             })
         }
+        Ask::Joining { fleet: id, pairing } => {
+            if fleet.in_fleet()? {
+                return Err(Error::InFleet);
+            }
+            let id = sync::fleet(&id)?;
+            let pairing: [u8; 32] = sync::bytes(&pairing)?
+                .try_into()
+                .map_err(|_| crate::control::fleet::Error::Encoding)?;
+            let bundle = me::bundle(state, fleet, now_ms)?;
+            Ok(Answer::Joining(crate::control::fleet::bluetooth::joining(
+                fleet.key(),
+                &id,
+                &pairing,
+                &bundle,
+            )?))
+        }
         Ask::Admit {
             bundle,
             signature,

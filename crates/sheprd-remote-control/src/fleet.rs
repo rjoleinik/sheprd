@@ -12,6 +12,8 @@
 //!   tunnel, so they land while every Sheprd window is shut.
 //! - [`joins`]: phones asking to join through this computer, waiting for a
 //!   person to admit them in Sheprd.
+//! - [`bluetooth`]: computers joining, or inviting this one, as they pair
+//!   over Bluetooth.
 //! - [`links`]: phones on this computer's API through the `Link`s they
 //!   signed.
 //! - [`scrub`]: forgetting the fleet, with every way it let someone in.
@@ -20,6 +22,7 @@
 //! log grants, off the control thread.
 
 pub(crate) mod ask;
+pub(crate) mod bluetooth;
 mod error;
 pub(crate) mod grants;
 mod joining;
@@ -478,6 +481,16 @@ impl Fleet {
         let named = match &apply.fleet {
             Some(named) => Some(sync::fleet(named)?),
             None => ops.first().map(joining::fleet_of),
+        };
+        // With no log yet, a caller naming a fleet hands over that fleet
+        // alone: another fleet's history it carries, one this computer
+        // once signed a join for, say, never becomes this computer's log.
+        let ops = match (&apply.fleet, named) {
+            (Some(_), Some(named)) if self.inner().log.is_none() => ops
+                .into_iter()
+                .filter(|op| joining::fleet_of(op) == named)
+                .collect(),
+            _ => ops,
         };
         let refused = match self.receive_from(ops, &heads, now_ms) {
             Ok(refused) => refused,

@@ -25,6 +25,7 @@ pub(super) fn pair(on: &Node, dir: &Path) -> crate::control::DeviceId {
         .add(
             crate::auth::NewDevice {
                 app: None,
+                fleet: None,
                 id: id.clone(),
                 name: "a desktop".into(),
                 public_key: crate::auth::PublicKey::parse(

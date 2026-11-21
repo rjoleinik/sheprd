@@ -9,7 +9,10 @@ use super::{
     exchange::Exchange,
     keys::ssh_public_key,
 };
-use crate::control::desktop::{MAX_LINE, PairInput, PairOutput, frame_bytes};
+use crate::control::{
+    desktop::{MAX_LINE, PairInput, PairOutput, frame_bytes},
+    fleet::bluetooth::{ClaimFleet, pairing_digest},
+};
 use sheprd_client::relay_host::host_name;
 use std::{
     io::{self, BufRead as _, Read as _, Write as _},
@@ -20,6 +23,17 @@ use tokio::sync::mpsc;
 
 /// How long the other computer has to answer each Bluetooth step.
 const STEP: Duration = Duration::from_secs(30);
+/// How long the person here has to say what the claim asks of the fleet:
+/// within the minute the other computer's sealed token lasts.
+const DECIDE: Duration = Duration::from_secs(50);
+
+/// What Sheprd hands the child.
+enum Input {
+    /// What the other computer answered over Bluetooth.
+    Frame(Vec<u8>),
+    /// What the claim asks of the fleet.
+    Claim(Option<ClaimFleet>),
+}
 
 /// Writes one line to Sheprd.
 pub(crate) fn emit(output: &PairOutput) {
@@ -51,12 +65,16 @@ pub(crate) async fn pair(state_dir: PathBuf, name: String) -> Result<()> {
     emit(&PairOutput::Code {
         code: opened.code.clone(),
         computer: opened.computer.clone(),
+        fleet: opened.fleet.clone(),
+        pairing: crate::control::fleet::sync::text(&pairing_digest(&opened.token)),
     });
+    let fleet = decision(&mut frames).await?;
 
     let claimant = Claimant {
         keys: &keys,
         name: &name,
         ssh_key: &ssh_key,
+        fleet: fleet.as_ref(),
     };
     // Sheprd closing this child's input cancels, whatever step it is on.
     let allowed = tokio::select! {
@@ -72,13 +90,14 @@ pub(crate) async fn pair(state_dir: PathBuf, name: String) -> Result<()> {
     emit(&PairOutput::Paired {
         target: format!("{}@{}", allowed.login.user, host_name(&id)),
         label: allowed.record.computer,
+        fleet: allowed.fleet,
     });
     Ok(())
 }
 
 /// Frames Sheprd hands back, read on a thread of their own; the channel
 /// closes with Sheprd's end of the pipe.
-fn frames() -> mpsc::Receiver<Vec<u8>> {
+fn frames() -> mpsc::Receiver<Input> {
     let (send, receive) = mpsc::channel(16);
     std::thread::spawn(move || {
         let mut stdin = io::stdin().lock();
@@ -90,13 +109,15 @@ fn frames() -> mpsc::Receiver<Vec<u8>> {
                 Ok(_) if line.len() > MAX_LINE => return,
                 Ok(_) => {}
             }
-            let Ok(PairInput::Frame { data }) = serde_json::from_str(line.trim_end()) else {
-                continue;
+            let input = match serde_json::from_str(line.trim_end()) {
+                Ok(PairInput::Frame { data }) => match frame_bytes(&data) {
+                    Some(frame) => Input::Frame(frame),
+                    None => continue,
+                },
+                Ok(PairInput::Claim { fleet }) => Input::Claim(fleet),
+                Err(_) => continue,
             };
-            let Some(frame) = frame_bytes(&data) else {
-                continue;
-            };
-            if send.blocking_send(frame).is_err() {
+            if send.blocking_send(input).is_err() {
                 return;
             }
         }
@@ -104,15 +125,39 @@ fn frames() -> mpsc::Receiver<Vec<u8>> {
     receive
 }
 
-async fn next(frames: &mut mpsc::Receiver<Vec<u8>>) -> Result<Vec<u8>> {
-    tokio::time::timeout(STEP, frames.recv())
-        .await
-        .map_err(|_| Error::Expired)?
-        .ok_or(Error::Cancelled)
+/// The next frame, dropping a decision out of turn.
+async fn next(frames: &mut mpsc::Receiver<Input>) -> Result<Vec<u8>> {
+    tokio::time::timeout(STEP, async {
+        loop {
+            match frames.recv().await {
+                Some(Input::Frame(frame)) => return Ok(frame),
+                Some(Input::Claim(_)) => {}
+                None => return Err(Error::Cancelled),
+            }
+        }
+    })
+    .await
+    .map_err(|_| Error::Expired)?
 }
 
-/// Waits for Sheprd to close the input, dropping any frame meanwhile.
-async fn closed(frames: &mut mpsc::Receiver<Vec<u8>>) {
+/// What the person here decided the claim asks of the fleet, dropping any
+/// late frame.
+async fn decision(frames: &mut mpsc::Receiver<Input>) -> Result<Option<ClaimFleet>> {
+    tokio::time::timeout(DECIDE, async {
+        loop {
+            match frames.recv().await {
+                Some(Input::Claim(fleet)) => return Ok(fleet),
+                Some(Input::Frame(_)) => {}
+                None => return Err(Error::Cancelled),
+            }
+        }
+    })
+    .await
+    .map_err(|_| Error::Expired)?
+}
+
+/// Waits for Sheprd to close the input, dropping anything meanwhile.
+async fn closed(frames: &mut mpsc::Receiver<Input>) {
     while frames.recv().await.is_some() {}
 }
 

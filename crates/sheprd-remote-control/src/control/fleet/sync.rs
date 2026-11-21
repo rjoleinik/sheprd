@@ -195,6 +195,10 @@ pub enum Ask {
     /// This computer's bundle, signed for `fleet`, for a member that is
     /// about to admit it.
     Bundle { fleet: String },
+    /// This computer's bundle signed for `fleet` and bound to a Bluetooth
+    /// pairing whose token hashes to `pairing`, base64url
+    /// (`bluetooth::pairing_digest`), for a claim that joins it.
+    Joining { fleet: String, pairing: String },
     /// Admits a member, after a person's approval here.
     Admit {
         bundle: String,
@@ -268,6 +272,8 @@ pub enum Answer {
     },
     Applied(Applied),
     Done,
+    /// [`Ask::Joining`]'s answer.
+    Joining(super::bluetooth::Joining),
     /// [`Ask::Intro`]'s answer: a `HostIntro`'s canonical bytes,
     /// base64url.
     Intro {

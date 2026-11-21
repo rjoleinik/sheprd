@@ -82,6 +82,7 @@ async fn leaving_keeps_the_keys_members_proved_until_their_pairings_go() {
         .add(
             crate::auth::NewDevice {
                 app: None,
+                fleet: None,
                 id: legacy.clone(),
                 name: "a over Bluetooth".into(),
                 public_key: crate::auth::PublicKey::parse(
