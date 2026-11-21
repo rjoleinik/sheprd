@@ -1,0 +1,19 @@
+1
+00:00:01,826 --> 00:00:05,540
+O Sheprd muda todo o visual em segundos.
+
+2
+00:00:06,412 --> 00:00:11,568
+Abra a paleta de comandos com Command Shift P e procure por temas.
+
+3
+00:00:12,102 --> 00:00:16,899
+Percorra a lista: cada tema aparece ao vivo na janela inteira.
+
+4
+00:00:18,081 --> 00:00:23,794
+Digite para filtrar e pressione Return para ficar com o que você gostou.
+
+5
+00:00:23,803 --> 00:00:27,667
+Fica salvo, e você pode mudar quando quiser.
