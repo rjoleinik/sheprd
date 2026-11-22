@@ -37,6 +37,7 @@ SHEPRD = (
 )
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import transcript  # noqa: E402
 import tts  # noqa: E402
 
 # Narration exists for every language in tts.LANGUAGE_NAMES; videos are made
@@ -407,7 +408,7 @@ def main():
                    help="re-render from the last recording")
     a = p.parse_args()
 
-    spec = json.loads(a.feature.read_text())
+    spec = transcript.load(a.feature)
     langs = a.langs.split(",")
     work = a.out / "work" / spec["id"]
     work.mkdir(parents=True, exist_ok=True)

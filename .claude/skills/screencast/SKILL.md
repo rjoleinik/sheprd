@@ -52,13 +52,18 @@ unpacking. Quit Sheprd in the machine first (bring it to the front with `open
 
 ## 4. Write the feature file
 
-Copy `scripts/screencast/features/themes.json` to `features/NAME.json`:
+A feature is two files, `features/NAME.json` (what happens on screen) and
+`features/NAME.md` (what is said: the title, then one `## N` section per
+segment with `en:` and `fr:` lines). To change only the words, edit the
+Markdown and run step 5 again; the recording is reused only if each sentence
+still fits (`--skip-record` refuses otherwise). For a new feature, copy both
+`themes` files:
 
-- `title`: shown over the first segment, per language.
+- `title` (in the `.md`, the `#` line): shown over the first segment.
 - `setup`: puts the app in a known state before recording: reset what the
   last run changed, open a clean terminal. Not recorded.
-- `segments`: 4 to 6, each one sentence in `say` (en and fr, plus the other
-  languages' text so they are ready) and the `actions` shown while it plays:
+- `segments`: 4 to 6, each one sentence in the `.md` (en and fr) and the
+  `actions` shown while it plays:
   `["key", "cmd+shift+p"]`, `["type", "text"]`, `["slowtype", "text", 0.05]`,
   `["click", x, y]` in screenshot pixels, `["wait", seconds]`,
   `["repeat", n, [actions]]`.

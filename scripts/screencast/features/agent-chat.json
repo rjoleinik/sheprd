@@ -1,10 +1,6 @@
 {
   "id": "agent-chat",
   "feature": "ACP chats",
-  "title": {
-    "en": "Native agent chats",
-    "fr": "Des chats natifs avec vos agents"
-  },
   "setup": [
     [
       "exec",
@@ -42,17 +38,9 @@
   ],
   "segments": [
     {
-      "say": {
-        "en": "Sheprd runs your coding agents in native chats, beside your terminal.",
-        "fr": "Sheprd fait tourner vos agents de code dans de vrais chats, à côté de votre terminal."
-      },
       "actions": []
     },
     {
-      "say": {
-        "en": "Start one with the sparkle button, and ask for what you need.",
-        "fr": "Lancez-en un avec le bouton étincelle, et demandez ce qu'il vous faut."
-      },
       "actions": [
         [
           "wait",
@@ -82,24 +70,12 @@
       ]
     },
     {
-      "say": {
-        "en": "The agent reads your code, makes the change and runs the tests, step by step.",
-        "fr": "L'agent lit votre code, fait la modification et lance les tests, étape par étape."
-      },
       "actions": []
     },
     {
-      "say": {
-        "en": "Every step is a card: what it read, the lines it changed, and what the tests said.",
-        "fr": "Chaque étape est une carte : ce qu'il a lu, les lignes modifiées, et le résultat des tests."
-      },
       "actions": []
     },
     {
-      "say": {
-        "en": "And the answer arrives formatted, ready for you to review.",
-        "fr": "Et la réponse arrive mise en forme, prête à être relue."
-      },
       "actions": []
     }
   ],

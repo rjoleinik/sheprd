@@ -16,7 +16,9 @@ up. Add a window there (Rune is planned) with its arguments and the share of
 the screen its maximized window fills.
 
 - `features/NAME.json`: the steps Sheprd is driven through (`sheprd machine
-  key/type/click`) and the narration of each segment in every language.
+  key/type/click/exec`), one list per segment.
+- `features/NAME.md`: the transcript: the title and each segment's sentence
+  in every language (`transcript.py`). Edit it to change what a video says.
 - `screencast.py`: voices every segment, records the machine once with each
   segment as long as its longest take, then renders
   `target/screencasts/WINDOW/elevenlabs-VOICE/NAME.LANG.mp4` and an `.srt` per

@@ -34,6 +34,14 @@ def narration(fid):
                          {"say": {"en": f"{fid} second.", "fr": f"{fid} deuxième."}}]}
 
 
+def transcript_md(fid):
+    n = narration(fid)
+    lines = [f"# {n['title']['en']}", f"fr: {n['title']['fr']}"]
+    for i, seg in enumerate(n["segments"], 1):
+        lines += ["", f"## {i}", f"en: {seg['say']['en']}", f"fr: {seg['say']['fr']}"]
+    return "\n".join(lines) + "\n"
+
+
 class Build(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
@@ -55,7 +63,8 @@ class Build(unittest.TestCase):
         }
         (clips / "manifest.json").write_text(json.dumps(manifest))
         for fid in ("alpha", "beta", "gamma"):
-            (specs / f"{fid}.json").write_text(json.dumps(narration(fid)))
+            (specs / f"{fid}.json").write_text(json.dumps({"id": fid, "segments": [{}, {}]}))
+            (specs / f"{fid}.md").write_text(transcript_md(fid))
         for name, value in {"SITE": self.site, "CLIPS": clips, "CATALOG": root / "features.json",
                             "SPECS": specs}.items():
             patch = unittest.mock.patch.object(features, name, value)
@@ -94,6 +103,12 @@ class Build(unittest.TestCase):
         self.assertIn("Classic window", beta)
         self.assertIn("1:10", self.read("index.html"))
         self.assertIn('rel="next" href="/features/alpha/"', beta)
+
+    def test_transcript_must_match_the_steps(self):
+        bad = self.site.parent / "specs/beta.md"
+        bad.write_text("# Beta\n\n## 1\nen: Only one.\n")
+        with self.assertRaises(features.transcript.Error):
+            features.spec("beta")
 
     def test_text_is_escaped(self):
         self.assertEqual(features.esc('<a & "b">'), "&lt;a &amp; &quot;b&quot;&gt;")

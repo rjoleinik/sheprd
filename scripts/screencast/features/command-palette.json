@@ -1,10 +1,6 @@
 {
   "id": "command-palette",
   "feature": "Command palette",
-  "title": {
-    "en": "The command palette",
-    "fr": "La palette de commandes"
-  },
   "setup": [
     [
       "exec",
@@ -42,17 +38,9 @@
   ],
   "segments": [
     {
-      "say": {
-        "en": "Everything in Sheprd is a few keystrokes away, in the command palette.",
-        "fr": "Dans Sheprd, tout est à quelques touches, dans la palette de commandes."
-      },
       "actions": []
     },
     {
-      "say": {
-        "en": "Press Command Shift P: workspaces, terminals, agents and commands, in one list.",
-        "fr": "Appuyez sur Commande Majuscule P : espaces de travail, terminaux, agents et commandes, dans une seule liste."
-      },
       "actions": [
         [
           "wait",
@@ -82,10 +70,6 @@
       "shortcut": "ctrl-shift-p"
     },
     {
-      "say": {
-        "en": "Type a few letters and press Return. Here, a split beside the terminal.",
-        "fr": "Tapez quelques lettres et appuyez sur Entrée. Ici, une division à côté du terminal."
-      },
       "actions": [
         [
           "wait",
@@ -107,10 +91,6 @@
       ]
     },
     {
-      "say": {
-        "en": "The chips at the top narrow the list, for example to commands only.",
-        "fr": "Les filtres du haut réduisent la liste, par exemple aux seules commandes."
-      },
       "actions": [
         [
           "wait",
@@ -156,10 +136,6 @@
       ]
     },
     {
-      "say": {
-        "en": "Escape closes it, right where you left off.",
-        "fr": "Échap la ferme, et vous reprenez là où vous en étiez."
-      },
       "actions": [
         [
           "wait",

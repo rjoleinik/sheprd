@@ -38,8 +38,12 @@ def catalog():
     return json.loads(CATALOG.read_text())["features"]
 
 
+sys.path.insert(0, str(ROOT / "scripts/screencast"))
+import transcript  # noqa: E402
+
+
 def spec(feature_id):
-    return json.loads((SPECS / f"{feature_id}.json").read_text())
+    return transcript.load(SPECS / f"{feature_id}.json")
 
 
 def seconds(stamp):

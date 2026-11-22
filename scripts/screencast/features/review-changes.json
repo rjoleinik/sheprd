@@ -1,10 +1,6 @@
 {
   "id": "review-changes",
   "feature": "Review Changes",
-  "title": {
-    "en": "Review Changes",
-    "fr": "Relire les changements"
-  },
   "setup": [
     [
       "exec",
@@ -46,17 +42,9 @@
   ],
   "segments": [
     {
-      "say": {
-        "en": "Before you ship what an agent wrote, review it in Sheprd.",
-        "fr": "Avant de livrer ce qu'un agent a écrit, relisez-le dans Sheprd."
-      },
       "actions": []
     },
     {
-      "say": {
-        "en": "Open Review Changes from the palette: every file the work touched.",
-        "fr": "Ouvrez « Relire les changements » depuis la palette : chaque fichier modifié."
-      },
       "actions": [
         [
           "wait",
@@ -86,17 +74,9 @@
       ]
     },
     {
-      "say": {
-        "en": "Each change sits beside the code it replaces.",
-        "fr": "Chaque modification s'affiche face au code qu'elle remplace."
-      },
       "actions": []
     },
     {
-      "say": {
-        "en": "Click a line number to leave a note for the agent.",
-        "fr": "Cliquez sur un numéro de ligne pour laisser une note à l'agent."
-      },
       "actions": [
         [
           "wait",
@@ -143,10 +123,6 @@
       ]
     },
     {
-      "say": {
-        "en": "Then mark the file viewed, and move on to the next.",
-        "fr": "Puis marquez le fichier comme vu, et passez au suivant."
-      },
       "actions": [
         [
           "wait",
