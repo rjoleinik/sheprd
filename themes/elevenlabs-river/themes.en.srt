@@ -1,19 +1,19 @@
 1
-00:00:01,486 --> 00:00:05,186
+00:00:01,452 --> 00:00:05,152
 Sheprd lets you change its whole look in seconds.
 
 2
-00:00:05,587 --> 00:00:10,647
+00:00:05,157 --> 00:00:10,217
 Open the command palette with Command Shift P, and search for themes.
 
 3
-00:00:11,450 --> 00:00:16,830
+00:00:10,782 --> 00:00:16,162
 Move through the list: every theme previews live, across the whole window.
 
 4
-00:00:16,915 --> 00:00:21,015
+00:00:16,243 --> 00:00:20,343
 Type to filter, then press Return to keep the one you like.
 
 5
-00:00:22,138 --> 00:00:25,678
+00:00:20,908 --> 00:00:24,448
 It's saved, and you can change it again anytime.
