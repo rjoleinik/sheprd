@@ -15,12 +15,15 @@
 //! be reached shows its terminal cells as before.
 // i18n: migrated
 
+mod auto_convert;
+pub(crate) mod brief;
 mod chats;
 pub(crate) mod code_block;
 mod code_choices;
 mod convert;
 pub(crate) mod core_pane;
 mod discovery;
+mod earlier;
 pub(crate) mod effects;
 mod existing;
 mod glide;
@@ -34,6 +37,7 @@ mod pick;
 mod prepared;
 #[cfg(feature = "integration-test")]
 pub(crate) mod preview;
+pub(crate) mod pull_requests;
 mod rail_folds;
 mod reader;
 mod remote_route;
@@ -46,12 +50,14 @@ mod start;
 mod summary;
 mod terminal;
 mod text;
+pub(crate) mod turns;
 mod upload;
 mod view;
 pub(crate) mod visual;
 pub(crate) mod widgets;
 mod window;
 
+pub(crate) use auto_convert::Typed;
 pub(crate) use chats::{ChatInput, Chats, LauncherDeck, Toward};
 
 /// The wall clock in milliseconds since the Unix epoch, which the program
@@ -65,7 +71,9 @@ pub(super) fn now_ms() -> u64 {
 }
 pub(crate) use convert::Error as ConvertError;
 pub(crate) use pick::short_text;
-pub(crate) use start::{Error as StartError, PROGRAM_ENV, Program};
+pub(crate) use start::{
+    Error as StartError, PROGRAM_ENV, Program, locate as start_program, takes_briefs,
+};
 
 use sheprd_chat_protocol::{ByeReason, EndpointId};
 use std::io;

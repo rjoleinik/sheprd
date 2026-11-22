@@ -20,6 +20,7 @@ fn a_change_goes_at_once_and_the_same_list_only_now_and_then() {
         sent: Some(list.clone()),
         last: Some(now),
         running: false,
+        ..Link::default()
     };
     assert!(!link.due(&list, now));
     assert!(!link.due(&list, now + RETRY));
@@ -35,6 +36,7 @@ fn an_empty_list_is_not_offered_again_once_taken() {
         sent: Some(Vec::new()),
         last: Some(now),
         running: false,
+        ..Link::default()
     };
     assert!(!link.due(&[], now + REFRESH * 10));
 }
@@ -47,6 +49,7 @@ fn a_machine_that_did_not_take_them_waits_before_another_try() {
         sent: None,
         last: Some(now),
         running: false,
+        ..Link::default()
     };
     assert!(!link.due(&list, now + RETRY / 2));
     assert!(link.due(&list, now + RETRY));
@@ -101,6 +104,7 @@ fn each_window_counts_and_one_never_hides_another_s_machines() {
             sent: Some(relays(&["relay.example.org"])),
             last: Some(now),
             running: false,
+            ..Link::default()
         },
     );
     sharing.forget_unreached(now);
@@ -127,6 +131,7 @@ fn a_silent_window_stops_counting_and_its_machines_hear_again_on_return() {
                 sent: Some(Vec::new()),
                 last: Some(start),
                 running,
+                ..Link::default()
             },
         );
     }
@@ -136,4 +141,23 @@ fn a_silent_window_stops_counting_and_its_machines_hear_again_on_return() {
     // A link with an offer running is kept, so it never starts twice.
     assert!(!sharing.links.contains_key("ssh:a"));
     assert!(sharing.links["ssh:b"].running);
+}
+
+#[test]
+fn a_changed_token_offers_the_same_relays_again_at_once() {
+    let now = Instant::now();
+    let list = relays(&["relay.example.org"]);
+    let link = Link {
+        sent: Some(list.clone()),
+        last: Some(now),
+        resend: true,
+        ..Link::default()
+    };
+    assert!(link.due(&list, now));
+    // Never while an offer runs.
+    let running = Link {
+        running: true,
+        ..link
+    };
+    assert!(!running.due(&list, now));
 }

@@ -60,6 +60,7 @@ kinds! {
     Desktop => "desktop.md",
     Intro => "intro.md",
     Phone => "phone.md",
+    PhoneApp => "phone-app.md",
     Remote => "remote.md",
     Terminal => "terminal.md",
     // keep-sorted end
@@ -74,6 +75,13 @@ impl Kind {
             Device::Terminal if origin.opens_paths() => Self::Terminal,
             Device::Desktop | Device::Terminal | Device::Other => Self::Remote,
         }
+    }
+
+    /// The template that follows [`Kind::of`]'s for a person at `origin`,
+    /// if any: only the iPhone and iPad app draws text sizes and message
+    /// effects, which the phone web app would show as written.
+    pub(crate) fn after(origin: Origin) -> Option<Self> {
+        (origin.device == Device::PhoneApp).then_some(Self::PhoneApp)
     }
 }
 

@@ -376,6 +376,12 @@ impl Launch {
     }
 }
 
+/// The `herdr` arguments that run `line` in `pane`, as Teleport launches
+/// into a Herdr 1 pane.
+pub(crate) fn chat_run_args<'a>(pane: &'a str, line: &'a str) -> [&'a str; 4] {
+    ["pane", "run", pane, line]
+}
+
 /// The created checkout's root pane and its terminal, from the daemon's
 /// `worktree_created` answer.
 fn root_pane(response: &serde_json::Value) -> Option<(&str, Option<&str>)> {
@@ -477,7 +483,7 @@ impl SheprdWindow {
         };
         Remembered::record(launch.landing, cx);
         if let Landing::Chat(agent) = launch.landing {
-            return self.land_chat(&launch.boot, pane, agent, cx);
+            return self.land_chat(launch.host, pane, agent, cx);
         }
         let Some(kind) = launch.landing.agent() else {
             return;
@@ -513,18 +519,42 @@ impl SheprdWindow {
 }
 
 impl SheprdWindow {
-    /// Types the line that starts a chat with `agent` into a new checkout's
-    /// root pane on boot `boot`, reporting a failure. The shell stays when
-    /// the chat quits, as for a chat's own tab.
-    fn land_chat(&mut self, boot: &str, pane: &str, agent: Agent, cx: &mut Context<Self>) {
-        let typed = self
-            .chat_line(agent)
-            .map_err(|error| crate::Error::from(crate::chat::Error::from(error)))
-            .and_then(|line| self.type_script_line(boot, pane, &line));
-        if let Err(error) = typed {
+    /// Runs the line that starts a chat with `agent` in a new checkout's
+    /// root pane on `host`, off the UI thread, reporting a failure. The
+    /// shell stays when the chat quits, as for a chat's own tab.
+    ///
+    /// Herdr's API writes it, not this client's shell input: Herdr drops
+    /// shell input for a pane the client does not view, and this client may
+    /// not have switched to the new workspace yet, or ever, when the dialog
+    /// closed first.
+    fn land_chat(&mut self, host: Host, pane: &str, agent: Agent, cx: &mut Context<Self>) {
+        let line = match self.chat_line(agent) {
+            Ok(line) => line,
+            Err(error) => {
+                let error = crate::Error::from(crate::chat::Error::from(error));
+                tracing::warn!(%error, agent = agent.name(), "Cannot start the new worktree's chat");
+                return self.land_failed(agent.display_name(), &error, cx);
+            }
+        };
+        let pane = pane.to_owned();
+        let started = cx.background_executor().spawn(async move {
+            host.herdr_ok(
+                crate::teleport::Step::Launch,
+                &chat_run_args(&pane, &line),
+                &AtomicBool::new(false),
+            )
+        });
+        cx.spawn(async move |this, cx| {
+            let Err(error) = started.await else {
+                return;
+            };
+            let error = crate::Error::from(error);
             tracing::warn!(%error, agent = agent.name(), "Cannot start the new worktree's chat");
-            self.land_failed(agent.display_name(), &error, cx);
-        }
+            let _ = this.update(cx, |this, cx| {
+                this.land_failed(agent.display_name(), &error, cx);
+            });
+        })
+        .detach();
     }
 
     fn land_failed(&mut self, agent: &str, error: &crate::Error, cx: &mut Context<Self>) {

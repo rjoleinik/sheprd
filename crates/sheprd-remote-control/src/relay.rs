@@ -19,6 +19,11 @@
 //! still meet. To use the nearest, the daemon measures each relay's round
 //! trip and `GET /api/relay` lists them nearest first, with those times,
 //! and the phone adds its own leg to each before choosing (`nearest`).
+//!
+//! A private relay admits only computers holding its operator's listen
+//! token: this computer's own (`app::relay_tokens`), or one the computer
+//! that shared the relay sent with it. A listener whose token changes
+//! reconnects with the new one.
 
 mod error;
 pub(crate) mod keys;
@@ -30,9 +35,11 @@ pub mod shared;
 pub use error::Error;
 pub(crate) use error::Result;
 
+use crate::app::relay_tokens::{self, Tokens};
 use crate::control;
 pub(crate) use crate::control::RelayState as Status;
 use crate::control::RelayStatus;
+use crate::control::relays::ListenToken;
 use crate::relay_label::RelayLabel;
 use crate::server::Relay;
 use sheprd_relay::Endpoint;
@@ -105,6 +112,9 @@ pub(crate) struct Relays {
     shared_file: PathBuf,
     /// Each relay's state, for `sheprd remote status`.
     status: Mutex<BTreeMap<String, Status>>,
+    /// This computer's own listen tokens, and the file that keeps them.
+    tokens: Mutex<Tokens>,
+    tokens_file: PathBuf,
 }
 
 /// The listeners running, once [`Relays::start`] said what they serve.
@@ -130,6 +140,7 @@ impl Relays {
     /// computers shared with it. Blocking.
     pub(crate) fn load(state_dir: &Path, relays: Vec<Relay>) -> Result<Self> {
         let shared_file = shared::file(state_dir);
+        let tokens_file = relay_tokens::file(state_dir);
         let labels = relays
             .iter()
             .filter(|relay| !relay.label.is_empty())
@@ -147,6 +158,8 @@ impl Relays {
             shared: Mutex::new(shared::load(&shared_file)),
             shared_file,
             status: Mutex::default(),
+            tokens: Mutex::new(relay_tokens::load(&tokens_file)),
+            tokens_file,
         })
     }
 
@@ -161,6 +174,61 @@ impl Relays {
             }
         }
         all
+    }
+
+    /// The listen token to present on `endpoint`: this computer's own, else
+    /// one a sharing computer sent; `None` on an open relay.
+    fn token(&self, endpoint: &Endpoint) -> Option<ListenToken> {
+        let own = self.tokens.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(token) = own.get(endpoint) {
+            return Some(token.clone());
+        }
+        drop(own);
+        let shared = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
+        shared.token(endpoint).cloned()
+    }
+
+    /// The token each relay listened on is presented, by endpoint, to tell
+    /// which listeners a change of tokens must reconnect.
+    fn presented(&self) -> BTreeMap<String, Option<ListenToken>> {
+        self.endpoints()
+            .into_iter()
+            .map(|endpoint| {
+                let token = self.token(&endpoint);
+                (endpoint.to_string(), token)
+            })
+            .collect()
+    }
+
+    /// Reconnects the listeners whose token differs from `before`.
+    fn reconnect_changed(self: &Arc<Self>, before: &BTreeMap<String, Option<ListenToken>>) {
+        let changed: Vec<String> = self
+            .presented()
+            .into_iter()
+            .filter(|(endpoint, token)| before.get(endpoint).is_some_and(|before| before != token))
+            .map(|(endpoint, _)| endpoint)
+            .collect();
+        if changed.is_empty() {
+            return;
+        }
+        {
+            let mut running = self.running.lock().unwrap_or_else(PoisonError::into_inner);
+            for endpoint in &changed {
+                if let Some(stop) = running.listeners.remove(endpoint) {
+                    let _ = stop.send(true);
+                }
+            }
+        }
+        self.follow();
+    }
+
+    /// Reads this computer's tokens again and reconnects the relays whose
+    /// token changed. Blocking: it reads the file.
+    pub(crate) fn reload_tokens(self: &Arc<Self>) {
+        let before = self.presented();
+        let saved = relay_tokens::load(&self.tokens_file);
+        *self.tokens.lock().unwrap_or_else(PoisonError::into_inner) = saved;
+        self.reconnect_changed(&before);
     }
 
     /// What nearby offers carry: [`Self::info`] without labels, as their
@@ -195,6 +263,7 @@ impl Relays {
         self: &Arc<Self>,
         offer: control::relays::Offer,
     ) -> std::result::Result<Vec<String>, shared::Error> {
+        let before = self.presented();
         {
             // The file is what stands, not this copy: a command that could
             // not reach this daemon (a busy pipe looks the same as none)
@@ -206,6 +275,7 @@ impl Relays {
             }
             *self.shared.lock().unwrap_or_else(PoisonError::into_inner) = next;
         }
+        self.reconnect_changed(&before);
         self.follow();
         Ok(self.endpoints().iter().map(ToString::to_string).collect())
     }
@@ -259,9 +329,13 @@ impl Relays {
                 if let Status::Listening { rtt_ms } = &mut state {
                     *rtt_ms = rtt.get(endpoint).copied();
                 }
+                let token = Endpoint::parse(endpoint)
+                    .ok()
+                    .is_some_and(|endpoint| self.token(&endpoint).is_some());
                 let status = RelayStatus {
                     label: self.labels.get(endpoint).cloned().unwrap_or_default(),
                     state,
+                    token,
                 };
                 (endpoint.clone(), status)
             })
@@ -327,9 +401,12 @@ impl Relays {
                     _ = recheck.tick() => {
                         let this = Arc::clone(&this);
                         let _ = tokio::task::spawn_blocking(move || {
+                            let before = this.presented();
                             if this.reload() {
+                                this.reconnect_changed(&before);
                                 this.follow();
                             }
+                            this.reload_tokens();
                         })
                         .await;
                     }

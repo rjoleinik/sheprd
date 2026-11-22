@@ -4,6 +4,7 @@ fn offer(source: &str, relays: &[&str]) -> Offer {
     Offer {
         source: source.into(),
         relays: relays.iter().map(|relay| (*relay).to_owned()).collect(),
+        ..Offer::default()
     }
 }
 

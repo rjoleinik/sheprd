@@ -8,7 +8,7 @@ use super::{
     ARROW_RESERVE, ICON_RESERVE, STATUS_WIDTH,
     agents::{Indicators, status_indicator},
     cell::{RowContext, RowState},
-    glyph_width, line_height, scaled, segment_budgets,
+    glyph_width, line_height, repository, scaled, segment_budgets,
     tokens::ResolvedToken,
 };
 use crate::config::{FontConfig, Theme};
@@ -22,7 +22,7 @@ mod badge;
 mod configured;
 
 pub(crate) use badge::compact;
-pub(super) use badge::{Counts, PrBadge, RowBadge, Upstream};
+pub(super) use badge::{Counts, PrBadge, RowBadge, Upstream, visible_chars};
 use configured::configured_lines;
 pub(crate) use configured::styled;
 pub(super) use configured::{
@@ -30,7 +30,7 @@ pub(super) use configured::{
 };
 
 /// What a row shows in its leading icon slot: a repository owner's avatar when
-/// one is cached, the GitHub mark while it is not, an empty slot for a folder
+/// one is cached, a letter tile while it is not, an empty slot for a folder
 /// that is not a Git checkout, so its name lines up with the rows around it,
 /// and nothing for a row that reserves no slot at all: a child row, or any
 /// row while the repository icons are turned off. A linked worktree that is
@@ -39,23 +39,39 @@ pub(super) use configured::{
 pub(super) enum RowIcon {
     None,
     Blank,
-    Mark,
-    Avatar(Arc<Image>),
+    Repository {
+        image: Option<Arc<Image>>,
+        tile: repository::Tile,
+    },
     Worktree(u32),
 }
 
 impl RowIcon {
     /// Whether the slot shows something; a blank one only keeps the room.
     pub(super) fn draws(&self) -> bool {
-        matches!(self, Self::Mark | Self::Avatar(_) | Self::Worktree(_))
+        matches!(self, Self::Repository { .. } | Self::Worktree(_))
     }
 
-    fn slot(self, key: &str, font: &FontConfig, color: u32) -> Div {
+    pub(super) fn repository(name: &str, image: Option<Arc<Image>>, theme: &Theme) -> Self {
+        Self::Repository {
+            image,
+            tile: repository::Tile::new(name, theme),
+        }
+    }
+
+    fn slot(self, key: &str, font: &FontConfig) -> Div {
         let probe = match self {
             Self::Worktree(_) => "worktree-icon",
             _ => "github",
         };
-        let size = scaled(font, 12.);
+        let size = scaled(
+            font,
+            if matches!(self, Self::Worktree(_)) {
+                12.
+            } else {
+                16.
+            },
+        );
         div()
             .debug_selector(|| format!("{probe}-{key}"))
             .absolute()
@@ -64,25 +80,31 @@ impl RowIcon {
             .size(px(size))
             .flex_none()
             .overflow_hidden()
-            .child(self.element(color))
+            .child(self.element(size))
     }
 
     /// The icon filling its parent, or nothing for rows without one. An
-    /// avatar still loading or failing to decode shows the mark instead.
-    pub(super) fn element(self, color: u32) -> AnyElement {
+    /// avatar still loading or failing to decode shows its letter tile instead.
+    pub(super) fn element(self, size: f32) -> AnyElement {
         match self {
             Self::None | Self::Blank => Empty.into_any_element(),
-            Self::Mark => github_mark(color).size_full().into_any_element(),
             Self::Worktree(hue) => svg()
                 .path("icons/git-branch.svg")
                 .size_full()
                 .text_color(rgb(hue))
                 .into_any_element(),
-            Self::Avatar(image) => img(image)
+            Self::Repository { image: None, tile } => tile.element(size),
+            Self::Repository {
+                image: Some(image),
+                tile,
+            } => img(image)
                 .size_full()
                 .rounded_full()
-                .with_fallback(move || github_mark(color).size_full().into_any_element())
-                .with_loading(move || github_mark(color).size_full().into_any_element())
+                .with_fallback({
+                    let tile = tile.clone();
+                    move || tile.element(size)
+                })
+                .with_loading(move || tile.element(size))
                 .into_any_element(),
         }
     }
@@ -479,7 +501,6 @@ pub(super) fn row(
         RowIcon::None => 0.,
         _ => scaled(font, ICON_RESERVE),
     };
-    let muted = theme.muted;
     let status_width = indicators.width(font);
     let extra_status_width = status_width - STATUS_WIDTH;
     let indent = cx.nest
@@ -653,7 +674,7 @@ pub(super) fn row(
                                     line.child(agent_mark(key, icon, agent_size, name_color, font))
                                 })
                                 .when(workspace_icon.draws(), |title| {
-                                    title.child(workspace_icon.slot(key, font, muted))
+                                    title.child(workspace_icon.slot(key, font))
                                 })
                                 .child(
                                     name_line(

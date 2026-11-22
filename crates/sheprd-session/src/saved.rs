@@ -82,6 +82,12 @@ pub fn readable_workspaces<'de, D: Deserializer<'de>>(
 
 /// The longest workspace ID kept, as for a tab's workspace.
 pub const MAX_ID_BYTES: usize = 256;
+/// The workspace the app keeps on a host with no Herdr 1: herdr-core has
+/// no workspaces of its own, so its tabs gather here.
+pub const DEFAULT_WORKSPACE: &str = "herdr-2";
+/// The herdr-core name of the shell the app shows in [`DEFAULT_WORKSPACE`]
+/// in place of Herdr 1's terminal. No saved tab holds it.
+pub const STAND_IN_SHELL: &str = "herdr-ui";
 /// The herdr-core label naming the workspace a terminal was started for
 /// outside the app, as by a phone: the app puts such a terminal in a tab
 /// of that workspace, and the remote control daemon lists it there.
@@ -96,6 +102,10 @@ pub const SESSION_LABEL: &str = "sheprd.session";
 /// is; the app puts the terminal in a tab there.
 pub const NEW_WORKSPACE_LABEL: &str = "sheprd.new_workspace";
 
+/// With [`NEW_WORKSPACE_LABEL`], the name the person gave the new
+/// workspace; absent, the app names it for its folder.
+pub const NEW_WORKSPACE_TITLE_LABEL: &str = "sheprd.new_workspace_title";
+
 /// The folder a terminal's labels ask a new workspace for, when it is one
 /// the app could keep: absolute, and within its bounds.
 pub fn new_workspace(labels: &BTreeMap<String, String>) -> Option<&str> {
@@ -103,6 +113,15 @@ pub fn new_workspace(labels: &BTreeMap<String, String>) -> Option<&str> {
         .get(NEW_WORKSPACE_LABEL)
         .map(String::as_str)
         .filter(|cwd| cwd.len() <= MAX_CWD_BYTES && std::path::Path::new(cwd).is_absolute())
+}
+
+/// The name a terminal's labels give the new workspace, when one is set,
+/// not blank, and within a workspace name's bounds.
+pub fn new_workspace_title(labels: &BTreeMap<String, String>) -> Option<&str> {
+    labels
+        .get(NEW_WORKSPACE_TITLE_LABEL)
+        .map(|title| title.trim())
+        .filter(|title| !title.is_empty() && title.chars().count() <= MAX_LABEL_CHARS)
 }
 
 /// A workspace a terminal was started for, as its labels name it.

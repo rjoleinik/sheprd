@@ -10,12 +10,28 @@ pub enum RemoteCommand {
         address: Option<String>,
     },
     Devices,
+    /// How iPhone pushes leave the daemon: off, or through the push relay,
+    /// and whether the last of each kind worked. Read-only.
+    PushStatus,
+    /// Send each paired iPhone one test alert through the push relay.
+    TestPush,
     /// Open the confirmation for revoking a device, by ID or name.
     Revoke {
         device: String,
     },
+    /// Open Add Device > Nearby Sheprd with another computer's pairing
+    /// link, read from standard input when the command runs; the user
+    /// clicks Pair there.
+    AddLink,
     /// Restart the daemon from the binary beside the app.
     Restart,
+    /// Keep this computer's listen token for a relay, read from standard
+    /// input when the command runs, or with `clear` forget it. The token
+    /// is never an argument, so it stays out of shell history and `ps`.
+    RelayToken {
+        relay: sheprd_relay::Endpoint,
+        clear: bool,
+    },
 }
 
 pub(super) fn remote(args: &mut Args) -> Result<RemoteCommand, CliError> {
@@ -27,7 +43,17 @@ pub(super) fn remote(args: &mut Args) -> Result<RemoteCommand, CliError> {
         Some("pair") => RemoteCommand::Pair {
             address: args.text_option("--address")?,
         },
+        // A word is most likely the link itself: refused without echoing
+        // it, as the leftover check would.
+        Some("add-link") if args.positional().is_some() => {
+            return Err(CliError::InvalidValue(
+                "argument: pipe the pairing link on standard input instead",
+            ));
+        }
+        Some("add-link") => RemoteCommand::AddLink,
         Some("devices" | "list") => RemoteCommand::Devices,
+        Some("push-status") => RemoteCommand::PushStatus,
+        Some("test-push") => RemoteCommand::TestPush,
         Some("restart") => RemoteCommand::Restart,
         // A name may be typed unquoted, as `remote revoke Fabien's iPhone`.
         Some("revoke") => RemoteCommand::Revoke {
@@ -36,6 +62,33 @@ pub(super) fn remote(args: &mut Args) -> Result<RemoteCommand, CliError> {
                 what: "DEVICE",
             })?,
         },
+        Some("relays") => relays(args)?,
         _ => return Err(unknown("remote", verb)),
     })
+}
+
+/// `remote relays token ENDPOINT [--clear]`.
+fn relays(args: &mut Args) -> Result<RemoteCommand, CliError> {
+    let verb = args.verb().ok_or(CliError::MissingArgument {
+        command: "remote relays",
+        what: "token",
+    })?;
+    if verb != "token" {
+        return Err(unknown("remote relays", verb));
+    }
+    let clear = args.flag("--clear");
+    let relay = args.positional().ok_or(CliError::MissingArgument {
+        command: "remote relays token",
+        what: "ENDPOINT",
+    })?;
+    let relay = sheprd_relay::Endpoint::parse(&crate::cli::args::utf8(relay)?)
+        .map_err(|_| CliError::InvalidValue("relay address"))?;
+    // A second word is most likely the token itself: refused without
+    // echoing it, as the leftover check would.
+    if args.positional().is_some() {
+        return Err(CliError::InvalidValue(
+            "argument: pipe the listen token on standard input instead",
+        ));
+    }
+    Ok(RemoteCommand::RelayToken { relay, clear })
 }

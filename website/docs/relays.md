@@ -19,9 +19,11 @@ Your computers will then use the relays you name, and only those: with a private
 
 ## Use your relay
 
-In Sheprd, open **Settings > Remote control > Relays**, type your relay's address, such as `https://relay.example.org`, and choose **Add**. The daemon restarts and each relay's row shows a dot and a line for how it stands: green while it is listening, red with the reason when it failed. `sheprd remote status` reports the same.
+In Sheprd, open **Settings > Remote control > Relays**, type your relay's address, such as `https://relay.example.org`, and choose **Add**. If the relay is private, Settings asks for its listen token: paste it there. The daemon restarts and each relay's row shows a dot and a line for how it stands: green while it is listening, red with the reason when it failed. `sheprd remote status` reports the same.
 
 The same section lists Sheprd's own relays once there are some, each with an **Add** button. Sheprd takes that list only when it is signed, and says who validated it.
+
+A relay deployed from [sheprd.org/relay](https://sheprd.org/relay/) or `create-droplet.sh` also comes with an **Add to Sheprd** link, `sheprd://relay?endpoint=…&token=…`. Opening it on your computer opens the same section with the relay and its token filled in; choose **Add** to keep them. From a script, `sheprd remote relays token ENDPOINT` saves a relay's token, read from standard input.
 
 Or name them in the config file:
 
@@ -57,8 +59,10 @@ The button, and **Deploy on DigitalOcean** in **Settings > Remote control > Rela
 
 1. In DigitalOcean, open **API > Tokens** and generate a token that expires soon. Give it **Custom Scopes**: `droplet` create and read, `ssh_key` read, and `tag` create; or **Full Access**.
 2. Paste it on the page, choose one or more regions near you and your computers, and optionally a size, your own domain, and the SSH keys to install.
-3. Choose **Deploy to DigitalOcean**. Keep the tab open: each relay's row shows its address, such as `https://203-0-113-7.sslip.io`, and turns to **ready** once the relay answers, a few minutes later.
-4. Copy each address into **Settings > Remote control > Relays** in Sheprd, then delete the token in DigitalOcean.
+3. Choose **Deploy to DigitalOcean**. Keep the tab open: each relay's row shows its address, such as `https://203-0-113-7.sslip.io`, its listen token, and an **Add to Sheprd** link, and turns to **ready** once the relay answers, a few minutes later.
+4. Open each relay's **Add to Sheprd** link on your computer, or add its address in **Settings > Remote control > Relays** and paste its listen token when asked. Then delete the token in DigitalOcean.
+
+Each relay is private: only computers given its listen token may listen on it, while phones never need one. The page makes the token in your browser and shows it only there; the droplet keeps a copy in `/root/sheprd-relay-login.txt`. To let any computer listen instead, check **Open relay (anyone may listen)**.
 
 The token stays in the page: it is sent only to DigitalOcean's API, never stored, and forgotten when the tab closes. The page builds each droplet's setup from [`deploy/relay`](https://github.com/sheprd-labs/sheprd/tree/main/deploy/relay) on `main`, exactly as `create-droplet.sh` below does.
 
@@ -75,13 +79,14 @@ deploy/relay/create-droplet.sh fra1            # one region
 deploy/relay/create-droplet.sh nyc3 fra1 sgp1  # one droplet in each
 ```
 
-It ends by printing each relay's address, ready to add in Settings. These change what it creates:
+It ends by printing each relay's address, its listen token, and its **Add to Sheprd** link. These change what it creates:
 
 | Variable | What it does |
 | --- | --- |
 | `RELAY_SIZE` | The droplet size; `s-1vcpu-1gb` by default |
 | `RELAY_SSH_KEYS` | Key ids or fingerprints from `doctl compute ssh-key list`, comma-separated, to reach the droplets over SSH; without them, use DigitalOcean's web console |
 | `RELAY_DOMAIN_SUFFIX` | Your own names: `relay.example.org` serves the relay in `fra1` at `fra1.relay.example.org` |
+| `RELAY_OPEN` | `1` lets any computer listen; by default each relay gets its own listen token |
 
 ## What a relay droplet runs
 
@@ -97,7 +102,7 @@ Give the page a domain, or set `RELAY_DOMAIN_SUFFIX`, and each relay is named af
 
 ## The dashboard and the droplet
 
-The relay's dashboard, at `https://ADDRESS/dashboard`, shows sessions, listeners, throughput, and refusals, read-only. Its access token is in `/root/sheprd-relay-login.txt` on the droplet:
+The relay's dashboard, at `https://ADDRESS/dashboard`, shows sessions, listeners, throughput, and refusals, read-only. Its access token is in `/root/sheprd-relay-login.txt` on the droplet, with the relay's listen token and **Add to Sheprd** link:
 
 ```sh
 doctl compute ssh sheprd-relay-fra1 --ssh-command 'cat /root/sheprd-relay-login.txt'
@@ -147,11 +152,16 @@ Point `relay.example.org` at the host first: Caddy gets its certificate on the f
 
 ## Keeping it safe
 
+A relay is a blind pipe: it joins two encrypted streams and counts bytes. It holds no key that opens them, keeps nothing on disk, and its logs name no address, route, or payload. Your computer's place on a relay is derived from a key only that computer holds, so no one else can take it over.
+
 A relay needs no accounts and no setup to stay safe:
 
-- Only devices a computer has paired can reach that computer; anyone else hears that it is offline.
+- Only devices a computer has paired can reach that computer; anyone else hears that it is offline, the same answer as for a computer that is not there. A pairing in progress opens one extra dial, for two minutes, used once.
 - Connections, sessions, and bandwidth are limited per address and in total. Every limit is a `RELAY_*` setting with a safe default.
 - Addresses that misbehave are banned automatically, for ten minutes, then an hour, then a day. To ban one yourself, add it to `bans/list`; the relay rereads it every 30 seconds.
-- `RELAY_LISTEN_TOKEN` keeps a relay to your own computers.
+- `RELAY_LISTEN_TOKEN` keeps a relay to your own computers. Droplets deployed from Sheprd set it for you. **Keep it**: an open relay lets anyone's computers listen and use your bandwidth to reach their own devices, within the limits above. It never lets them reach yours.
+- The dashboard needs its own access token, and `/metrics` is published only on the droplet itself.
+
+What a relay cannot stop on its own is a flood of traffic aimed at its address. For that, rely on your hosting provider's network protection or a firewall in front of it.
 
 The full list of settings is in [`deploy/relay/README.md`](https://github.com/sheprd-labs/sheprd/blob/main/deploy/relay/README.md), and the design in [`docs/relay-plan.md`](https://github.com/sheprd-labs/sheprd/blob/main/docs/relay-plan.md).

@@ -8,6 +8,10 @@
 //! offers the list whole: at once when it changes or a machine connects,
 //! then now and then, in case a machine lost what it kept. A machine
 //! without `sheprd-remote-control` is skipped quietly; no phone reaches it.
+//!
+//! A private relay's listen token goes with it, so the user's other
+//! machines may listen there too; a token changed in Settings is offered
+//! again at once.
 
 mod error;
 mod sync;
@@ -38,6 +42,8 @@ struct Link {
     sent: Option<Vec<String>>,
     last: Option<Instant>,
     running: bool,
+    /// A listen token changed since it took them: offer them again.
+    resend: bool,
 }
 
 impl Link {
@@ -47,6 +53,9 @@ impl Link {
     fn due(&self, relays: &[String], now: Instant) -> bool {
         if self.running {
             return false;
+        }
+        if self.resend {
+            return true;
         }
         let since = |wait| {
             self.last
@@ -120,6 +129,20 @@ impl RelaySharing {
         }
     }
 
+    /// A listen token changed here: every machine hears the relays again,
+    /// with their tokens.
+    pub(crate) fn tokens_changed(cx: &mut App) {
+        if !cx.has_global::<Self>() {
+            return;
+        }
+        cx.update_global::<Self, _>(|this, _| {
+            for link in this.links.values_mut() {
+                link.resend = true;
+            }
+        });
+        Self::tick(cx);
+    }
+
     /// Tells which devices `window` can reach; this computer's own daemon
     /// follows the settings itself, so only other machines count.
     pub(crate) fn reach(cx: &mut App, window: EntityId, reachable: &BTreeMap<String, Daemon>) {
@@ -182,15 +205,19 @@ impl RelaySharing {
             cx.update_global::<Self, _>(|this, _| {
                 let link = this.links.entry(id.clone()).or_default();
                 link.running = true;
+                link.resend = false;
                 link.last = Some(now);
             });
-            let offer = sheprd_remote_control::control::relays::Offer {
-                source: source.clone(),
-                relays: relays.clone(),
-            };
-            let task = cx
-                .background_executor()
-                .spawn(async move { sync::share(&target, offer, &AtomicBool::new(false)) });
+            let (source, offered) = (source.clone(), relays.clone());
+            let task = cx.background_executor().spawn(async move {
+                // Read here, off the UI thread: the tokens are a file.
+                let offer = sheprd_remote_control::control::relays::Offer {
+                    tokens: crate::remote::relay_token::shared(&offered),
+                    source,
+                    relays: offered,
+                };
+                sync::share(&target, offer, &AtomicBool::new(false))
+            });
             let sent = relays.clone();
             cx.spawn(async move |cx| {
                 let answer = task.await;

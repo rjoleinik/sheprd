@@ -8,6 +8,7 @@ mod agents;
 mod animated;
 mod cell;
 mod device_drag;
+mod front_watch;
 mod host_row;
 pub(crate) mod hosted;
 mod hover;
@@ -19,6 +20,7 @@ mod order;
 mod rail;
 mod render;
 mod reorder;
+mod repository;
 mod row;
 mod search;
 pub(crate) mod slide;
@@ -54,11 +56,15 @@ pub(crate) use {
     workspaces::{label_of, workspace_entries, workspace_label},
 };
 
+pub(crate) use front_watch::FrontWatch;
 pub(crate) use layout::SidebarMetrics;
 pub(crate) use order::step as sidebar_step;
 
 #[cfg(any(test, feature = "integration-test"))]
 pub(crate) use metrics::LABEL_WIDTH;
+
+#[cfg(test)]
+pub(crate) use repository::initials as repository_initials;
 
 pub(crate) use view::cached as cached_view;
 

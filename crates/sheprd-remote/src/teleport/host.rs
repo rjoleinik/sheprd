@@ -72,7 +72,16 @@ impl Host {
     /// installation, so a saved reference is never applied to another
     /// daemon behind the same endpoint ID.
     pub fn identity(&self) -> String {
-        let route = match &self.route {
+        let route = self.machine_identity();
+        let session = self.session.as_deref().unwrap_or_default();
+        let installation = if self.development { "dev" } else { "release" };
+        format!("{route}|{session}|{installation}")
+    }
+
+    /// The authenticated machine route, independent of its terminal session.
+    /// Host-wide services use this to avoid one worker per tab/session.
+    pub fn machine_identity(&self) -> String {
+        match &self.route {
             Route::Local => "local".to_owned(),
             Route::Ssh(target) => format!("ssh:{target}"),
             Route::Wsl(distro) => format!("wsl:{distro}"),
@@ -82,10 +91,7 @@ impl Host {
                 account,
                 id,
             } => format!("cloud:{provider:?}:{account}:{id}"),
-        };
-        let session = self.session.as_deref().unwrap_or_default();
-        let installation = if self.development { "dev" } else { "release" };
-        format!("{route}|{session}|{installation}")
+        }
     }
 
     /// A host for `target`. Custom sockets are refused: the CLI could not be

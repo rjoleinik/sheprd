@@ -110,6 +110,7 @@ impl SheprdWindow {
         self.poll_chat_restore(enabled, route.as_ref());
         self.poll_chat_start(cx);
         self.poll_chat_convert(cx);
+        self.poll_chat_auto_convert(now);
         let mut changed = self.chats.reconcile(targets, now, connect) || discovered;
         // A layout saved from Settings or the command line arrives here.
         changed |= self.chats.relayout(self.config.chat.layout);
@@ -158,13 +159,23 @@ impl SheprdWindow {
                     continue;
                 }
             }
-            let composer = pane
-                .composer
-                .get_or_insert_with(|| {
+            let composer = match &pane.composer {
+                Some(composer) => composer.clone(),
+                None => {
                     changed = true;
-                    cx.new(MultilineInput::new)
-                })
-                .clone();
+                    let composer = cx.new(MultilineInput::new);
+                    let pane_id = pane.target.pane_id.clone();
+                    pane.composer_typed = Some(cx.subscribe_in(
+                        &composer,
+                        window,
+                        move |this, _, _: &crate::multiline_input::Changed, window, cx| {
+                            this.close_chat_menu_on_typing(&pane_id, window, cx);
+                        },
+                    ));
+                    pane.composer = Some(composer.clone());
+                    composer
+                }
+            };
             let accepts = pane.session.transcript().status.accepts_prompts();
             // The selected command shows as ghost text after the typed name.
             let text = composer.read(cx).text().to_owned();

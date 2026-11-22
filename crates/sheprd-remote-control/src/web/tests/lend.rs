@@ -92,7 +92,20 @@ fn lease() -> crate::control::github::LeaseAnswer {
     })
 }
 
+/// One lend at a time across this file's tests. The first lend in the
+/// process registers the "Lent" log line's callsite, and registering it on
+/// another thread while [`a_lent_token_never_reaches_the_log`] rebuilds
+/// tracing's interest cache can store that line as disabled after the
+/// rebuild, so the test would read an empty log.
+static LENDS: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 async fn lent(state: &Shared, token: &str, host: &str) -> (StatusCode, serde_json::Value) {
+    let _one = LENDS.lock().await;
+    lend_unlocked(state, token, host).await
+}
+
+/// [`lent`], for a caller already holding [`LENDS`].
+async fn lend_unlocked(state: &Shared, token: &str, host: &str) -> (StatusCode, serde_json::Value) {
     let path = format!("/api/v2/github/token?host={host}");
     let (status, _, body) = send(state, authed(token, &path)).await;
     (status, serde_json::from_str(&body).unwrap())
@@ -404,6 +417,9 @@ fn a_lent_token_never_reaches_the_log() {
 
 fn lent_token_log_alone() {
     use std::sync::{Arc, Mutex};
+    // Held from before the subscriber is set until the lend is logged, so
+    // no other test registers the log line meanwhile (see `LENDS`).
+    let _one = LENDS.blocking_lock();
     #[derive(Clone, Default)]
     struct Log(Arc<Mutex<Vec<u8>>>);
     impl std::io::Write for Log {
@@ -436,7 +452,7 @@ fn lent_token_log_alone() {
         let dir = tempfile::tempdir().unwrap();
         let state = lending_state(dir.path(), Lending::new(Vec::new(), gh_signed_in));
         let (_, token) = signed_in(&state, 1);
-        let (status, body) = lent(&state, &token, "github.com").await;
+        let (status, body) = lend_unlocked(&state, &token, "github.com").await;
         assert_eq!(
             (status, body["token"].as_str()),
             (StatusCode::OK, Some(GH_TOKEN))

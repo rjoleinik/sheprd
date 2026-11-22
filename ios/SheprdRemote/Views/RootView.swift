@@ -159,7 +159,7 @@ struct RootView: View {
         TabView(selection: $tab) {
             Tab("Home", systemImage: "house", value: RootTab.home) {
                 NavigationStack(path: $homePath) {
-                    HomeTab(pairing: $window.pairing).withRoutes()
+                    HomeTab(pairing: $window.pairing).makesRoomForConnectionToast().withRoutes()
                 }
                 .environment(\.offersWorkspace, true)
                 .slidesTabBar(hidden: !homePath.isEmpty)
@@ -167,16 +167,16 @@ struct RootView: View {
             }
             .badge(model.fleet.waiting)
             Tab("Workspaces", systemImage: "square.stack.3d.up", value: RootTab.workspaces) {
-                NavigationStack(path: $workspacesPath) { WorkspacesTab(query: $workspacesQuery).withRoutes() }
+                NavigationStack(path: $workspacesPath) { WorkspacesTab(query: $workspacesQuery).makesRoomForConnectionToast().withRoutes() }
                     .slidesTabBar(hidden: !workspacesPath.isEmpty)
                     .connectionToast(pairing: $window.pairing)
             }
             Tab("Pull Requests", systemImage: "arrow.triangle.pull", value: RootTab.pullRequests) {
-                NavigationStack { PullRequestsList() }
+                NavigationStack { PullRequestsList().makesRoomForConnectionToast() }
                     .connectionToast(pairing: $window.pairing)
             }
             Tab("Settings", systemImage: "gearshape", value: RootTab.settings) {
-                NavigationStack { SettingsView() }
+                NavigationStack { SettingsView().makesRoomForConnectionToast() }
                     .connectionToast(pairing: $window.pairing)
             }
         }
@@ -193,13 +193,16 @@ extension RootView {
     /// that tab, `-openWorkspace ID` opens that workspace in the Workspaces
     /// tab, `-newWorkspace YES` opens the new workspace form,
     /// `-openComputer YES` opens the first computer's page from Workspaces,
-    /// `-editComputers YES` puts Settings' computers in Edit, and
-    /// `-openRelays YES` opens Settings' relays. In a
+    /// `-editComputers YES` opens Settings > Computers in Edit, and
+    /// `-openRelays YES` opens Settings' relays, and `-openNotifications YES`
+    /// Settings > Notifications. In a
     /// chat, `-session YES` opens its session sheet and `-draft TEXT`
     /// types into the composer. `-voiceSay TEXT` runs a spoken command as
     /// if it were heard, as the simulator has no microphone, and
     /// `-voiceThen TEXT` follows it with another. `-sampleChat YES` opens a
-    /// made-up chat, for screenshots without anyone's real prompts.
+    /// made-up chat, for screenshots without anyone's real prompts, and
+    /// `-sampleChat effects` one with text sizes and message effects, and
+    /// `-sampleChat activity` one running sub-agents, shells, and a plan.
     func followLaunchArguments() async {
         let defaults = UserDefaults.standard
         if let link = defaults.string(forKey: "pairLink"),
@@ -248,7 +251,11 @@ extension RootView {
                 workspacesPath.append(WorkspaceKey(device: machine.id, workspace: workspace))
             }
         }
-        if defaults.bool(forKey: "sampleChat") {
+        if defaults.string(forKey: "sampleChat") == "activity" {
+            model.pendingRoute = .chat(.activitySample, title: "Rail on iOS")
+        } else if defaults.string(forKey: "sampleChat") == "effects" {
+            model.pendingRoute = .chat(.effectsSample, title: "Release checks")
+        } else if defaults.bool(forKey: "sampleChat") {
             model.pendingRoute = .chat(.sample, title: "Weather widget")
         }
         if let pane = defaults.string(forKey: "openTerm") {
@@ -275,7 +282,7 @@ struct CreatingSheet: View {
 
 extension View {
     func withRoutes() -> some View {
-        navigationDestination(for: Route.self) { $0.screen }
+        navigationDestination(for: Route.self) { $0.screen.makesRoomForConnectionToast() }
     }
 
     /// Slides a tab's bar in and out with its stack. The screens pushed on

@@ -41,12 +41,12 @@ pub const INTERRUPTS: u32 = 8;
 
 /// The agents that can move: Herdr reports their session, and either
 /// `sheprd-acp` reads their log or their ACP server replays it. Herdr has no
-/// session for Gemini, and nothing shows Pi's history yet, so it would open
-/// as an empty chat.
+/// session for Gemini, nothing shows Pi's history yet, and Kimi conversion is
+/// not wired up, so these would open as empty chats.
 pub fn convertible(agent: Agent) -> bool {
     match agent {
         Agent::Claude | Agent::Codex | Agent::Copilot | Agent::Opencode => true,
-        Agent::Gemini | Agent::Pi => false,
+        Agent::Gemini | Agent::Kimi | Agent::Pi => false,
     }
 }
 

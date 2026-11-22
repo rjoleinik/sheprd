@@ -282,11 +282,8 @@ pub(super) fn configured_lines(
             text = text.child(agent_mark(key, icon, agent_size, icon_color, font));
         }
         if index == 0 && workspace_icon.draws() {
-            text = text.child(std::mem::replace(&mut workspace_icon, RowIcon::None).slot(
-                key,
-                font,
-                theme.muted,
-            ));
+            text =
+                text.child(std::mem::replace(&mut workspace_icon, RowIcon::None).slot(key, font));
         }
         text = text.child(
             token_line(line_tokens(index, line), look, text_width, cx)

@@ -65,6 +65,7 @@ fn ui_panel_shows_the_overview_automations_and_usage_across_the_window(
         ActivityPanel::Overview,
         ActivityPanel::Automations,
         ActivityPanel::Usage,
+        ActivityPanel::Traces,
     ] {
         let shown = cx.cx.update(|cx| ui(call(UiOp::Panel { panel }), cx));
         assert!(matches!(shown, Response::Done { .. }), "{shown:?}");

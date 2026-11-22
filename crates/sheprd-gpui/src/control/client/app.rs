@@ -149,6 +149,8 @@ pub(super) fn window(command: WindowCommand, context: &Context) -> crate::Result
 
 pub(super) fn ui(command: UiCommand, context: &Context) -> crate::Result<Output> {
     let op = match command {
+        UiCommand::Traces => UiOp::Traces {},
+        UiCommand::TracesFilter(filter) => UiOp::TracesFilter { filter },
         UiCommand::Sidebar(switch) => UiOp::Sidebar { switch },
         UiCommand::StatusBar(switch) => UiOp::StatusBar { switch },
         UiCommand::MenuBar(switch) => UiOp::MenuBar { switch },
@@ -158,6 +160,21 @@ pub(super) fn ui(command: UiCommand, context: &Context) -> crate::Result<Output>
         UiCommand::AgentGroup(name) => UiOp::AgentGroup { name },
     };
     match context.call(Request::Ui, op)? {
+        Response::App {
+            reply:
+                Reply::Traces {
+                    peers,
+                    filter,
+                    hosts,
+                },
+        } => Output::data(
+            format!(
+                "{}\n{}",
+                trace_hosts_text(&filter, &hosts),
+                traces_text(&peers)
+            ),
+            &serde_json::json!({"peers": peers, "filter": filter, "hosts": hosts}),
+        ),
         Response::Done { message } => Ok(Output::message(message)),
         Response::App {
             reply: Reply::FontSize { points },
@@ -173,6 +190,48 @@ pub(super) fn ui(command: UiCommand, context: &Context) -> crate::Result<Output>
         ),
         response => Err(unexpected(response)),
     }
+}
+
+fn traces_text(peers: &[sheprd_control_protocol::protocol::app::TracePeer]) -> String {
+    use sheprd_control_protocol::protocol::app::TraceSyncState;
+    if peers.is_empty() {
+        return "No connected hosts to synchronize traces".into();
+    }
+    peers
+        .iter()
+        .map(|peer| {
+            let status = match &peer.state {
+                TraceSyncState::Waiting => "waiting".into(),
+                TraceSyncState::Syncing => "synchronizing".into(),
+                TraceSyncState::Ready => "up to date at the last exchange".into(),
+                TraceSyncState::Failed { error } => format!("failed: {error}"),
+            };
+            format!("{}: {status}", peer.host)
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn trace_hosts_text(
+    filter: &sheprd_control_protocol::protocol::app::TraceFilter,
+    hosts: &[sheprd_control_protocol::protocol::app::TaggedHost],
+) -> String {
+    use sheprd_control_protocol::protocol::app::TraceFilter;
+    let mut text = match filter {
+        TraceFilter::All => "Traces: all hosts".to_owned(),
+        TraceFilter::Host { id } => format!("Traces: host {id}"),
+        TraceFilter::Tag { tag } => format!("Traces: label {tag}"),
+    };
+    for host in hosts {
+        let _ = write!(
+            text,
+            "\n{}  {}  [{}]",
+            host.id,
+            host.label,
+            host.tags.tags.join(", ")
+        );
+    }
+    text
 }
 
 /// One group a line, the one shown marked, as `theme list` marks its own.

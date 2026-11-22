@@ -27,6 +27,7 @@ error-chat-version = the chat program speaks protocol version { $version }
 
 # $agent is an agent's name, such as Claude Code.
 error-chat-start-agent-missing = { $agent } is not installed on this host
+error-chat-start-brief-remote = a brief can only start a chat on this machine
 error-chat-start-disabled = ACP chats are off in Settings
 error-chat-start-line = the chat's command cannot be typed into a shell
 error-chat-start-no-workspace = no workspace is focused
@@ -44,6 +45,7 @@ error-chat-start-timeout = Herdr did not open the chat's tab in time
 error-chat-convert-already-chat = the pane already runs a chat
 error-chat-convert-already-converting = another agent is still moving into a chat
 error-chat-convert-answer = could not read the pane's processes
+error-chat-convert-claimed = another window is moving this agent into a chat
 error-chat-convert-busy = { $agent } is busy; wait until it is idle
 error-chat-convert-folder-gone = the session's folder { $folder } is gone, as when its worktree was removed
 error-chat-convert-host-program = sheprd-acp was not found on this host
@@ -102,6 +104,8 @@ error-chat-rejection-unknown-queued = that prompt is no longer queued
 error-chat-rejection-agent-unavailable = the program could not deliver the command to the agent
 error-chat-rejection-agent-fixed = the chat's agent cannot change while it is working
 error-chat-rejection-agent-missing = that agent is not installed where the chat runs
+error-chat-rejection-invalid-pull-request = that is not a GitHub pull request address, such as https://github.com/OWNER/REPO/pull/7
+error-chat-rejection-too-many-pull-requests = the chat already lists { $count } pull requests
 # $count is the most files one prompt takes.
 error-chat-rejection-too-many-attachments = a prompt takes at most { $count } files
 error-chat-rejection-queue-full = too many prompts are waiting; wait for the turn to end

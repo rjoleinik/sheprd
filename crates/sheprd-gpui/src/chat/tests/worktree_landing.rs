@@ -1,4 +1,4 @@
-//! A new worktree that opens as a chat: the line typed into its root pane,
+//! A new worktree that opens as a chat: the line run in its root pane,
 //! which carries the program and `[chat.env]` itself, and the ways it is
 //! refused.
 
@@ -9,7 +9,6 @@ use crate::{
     worktree_landing::{Landing, Launch, Picker},
 };
 use sheprd_chat_protocol::Agent;
-use sheprd_client::protocol::{ClientMessage as DaemonMessage, ClientPaneInputEvent};
 use std::{collections::BTreeMap, path::Path};
 
 #[test]
@@ -55,32 +54,10 @@ fn a_chat_line_needs_chats_on_and_the_program(cx: &mut gpui::TestAppContext) {
     });
 }
 
-/// The created checkout's root pane gets the chat's line, as a chat's own
-/// tab gets its fixed one.
-#[gpui::test]
-fn a_created_worktree_lands_in_a_chat(cx: &mut gpui::TestAppContext) {
-    let mut peer = MockPeer::advertising(&[]);
-    let (view, cx) = cx.add_window_view(fixture_window);
-    cx.update(|_, cx| {
-        view.update(cx, |view, cx| {
-            super::start::local_window(view, &peer, cx);
-            let host = crate::teleport::host_for(&sheprd_client::ConnectTarget::Local).unwrap();
-            let picker = Picker::new(host, Landing::Chat(Agent::Claude), true);
-            let boot = view.live.snapshot.as_ref().unwrap().boot_id.clone();
-            let launch = Launch::new("create", (0, 0), &boot, &picker);
-            let created = serde_json::json!({"result":{"type":"worktree_created",
-                "workspace":{"workspace_id":"w6"},"root_pane":{"pane_id":"w6:p1"}}});
-            view.land(launch, &created, cx);
-            assert!(view.local_error.is_none(), "{:?}", view.local_error);
-        });
-        assert_eq!(
-            crate::worktree_landing::Remembered::landing(cx),
-            Landing::Chat(Agent::Claude)
-        );
-    });
-    let typed = std::iter::repeat_with(|| peer.receive())
-        .take(8)
-        .find(|message| matches!(message, DaemonMessage::ClientShellPaneInput { .. }));
+/// The created checkout's root pane gets the chat's line through Herdr's
+/// API, one argument whole, as Teleport runs a line in a Herdr 1 pane.
+#[test]
+fn a_created_worktree_runs_its_chat_through_herdr() {
     let line = shell_line(
         Agent::Claude,
         Path::new("/opt/herdr-acp"),
@@ -89,15 +66,36 @@ fn a_created_worktree_lands_in_a_chat(cx: &mut gpui::TestAppContext) {
     )
     .unwrap();
     assert_eq!(
-        typed.unwrap(),
-        DaemonMessage::ClientShellPaneInput {
-            pane_id: "w6:p1".into(),
-            events: vec![
-                ClientPaneInputEvent::TextCommit(line),
-                crate::menu::enter_key(),
-            ],
-        }
+        crate::worktree_landing::chat_run_args("w6:p1", &line),
+        ["pane", "run", "w6:p1", line.as_str()]
     );
+}
+
+/// A created worktree whose chat cannot start yet says so, and still
+/// remembers the choice for the next dialog.
+#[gpui::test]
+fn a_created_worktree_reports_a_chat_it_cannot_start(cx: &mut gpui::TestAppContext) {
+    let peer = MockPeer::advertising(&[]);
+    let (view, cx) = cx.add_window_view(fixture_window);
+    cx.update(|_, cx| {
+        view.update(cx, |view, cx| {
+            super::start::local_window(view, &peer, cx);
+            // Refused before any host run, so the test never reaches a daemon.
+            view.chats.program = crate::chat::Program::Looking;
+            let host = crate::teleport::host_for(&sheprd_client::ConnectTarget::Local).unwrap();
+            let picker = Picker::new(host, Landing::Chat(Agent::Claude), true);
+            let boot = view.live.snapshot.as_ref().unwrap().boot_id.clone();
+            let launch = Launch::new("create", (0, 0), &boot, &picker);
+            let created = serde_json::json!({"result":{"type":"worktree_created",
+                "workspace":{"workspace_id":"w6"},"root_pane":{"pane_id":"w6:p1"}}});
+            view.land(launch, &created, cx);
+            assert!(view.local_error.is_some());
+        });
+        assert_eq!(
+            crate::worktree_landing::Remembered::landing(cx),
+            Landing::Chat(Agent::Claude)
+        );
+    });
 }
 
 /// The search for the program ends while the dialog is open: a chat it

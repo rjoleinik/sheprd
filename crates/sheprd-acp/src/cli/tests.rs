@@ -2,12 +2,14 @@
 
 use super::*;
 
+mod briefs;
 mod choose;
 mod connect;
 mod mirror;
 mod restore;
 mod session_helpers;
 mod t3;
+mod traces;
 mod transcripts;
 
 fn args(list: &[&str]) -> Vec<OsString> {

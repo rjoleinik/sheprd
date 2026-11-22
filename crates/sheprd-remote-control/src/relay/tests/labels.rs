@@ -72,6 +72,7 @@ fn the_nearby_offer_leaves_the_labels_out() {
         token: "t".into(),
         origins: &[],
         relay: auth.relay_offer(),
+        fleet: None,
     })
     .unwrap();
     assert!(sealed["relay"].get("labels").is_none(), "{sealed}");
@@ -98,6 +99,7 @@ fn status_names_each_relay_with_its_label() {
         RelayStatus {
             label: fra3(),
             state: Status::Listening { rtt_ms: None },
+            token: false,
         }
     );
     assert_eq!(

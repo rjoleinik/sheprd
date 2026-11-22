@@ -33,6 +33,7 @@ async fn a_shared_relay_is_listened_on_at_once_and_dropped_when_withdrawn() {
             relays.share(Offer {
                 source: "studio".into(),
                 relays: vec![endpoint],
+                ..Offer::default()
             })
         }
     })
@@ -71,6 +72,7 @@ async fn a_shared_relay_is_listened_on_at_once_and_dropped_when_withdrawn() {
             relays.share(Offer {
                 source: "studio".into(),
                 relays: Vec::new(),
+                ..Offer::default()
             })
         }
     })
@@ -96,6 +98,7 @@ fn configured_relays_come_first_and_shared_ones_add_only_what_is_new() {
         .offer(Offer {
             source: "studio".into(),
             relays: vec!["b.example.org".into(), "https://relay.example.org".into()],
+            ..Offer::default()
         })
         .unwrap();
     super::super::shared::save(&super::super::shared::file(dir.path()), &saved).unwrap();
@@ -121,6 +124,7 @@ async fn an_offer_written_after_loading_but_before_starting_is_kept() {
             Offer {
                 source: "studio".into(),
                 relays: vec!["relay.example.org".into()],
+                ..Offer::default()
             },
         )
     })
@@ -145,6 +149,7 @@ async fn an_offer_written_while_the_daemon_ran_is_built_on_and_picked_up() {
     let offer = |source: &str, relay: &str| Offer {
         source: source.into(),
         relays: vec![relay.into()],
+        ..Offer::default()
     };
 
     // A command that could not reach this daemon wrote its offer itself.
@@ -168,6 +173,7 @@ async fn an_offer_written_while_the_daemon_ran_is_built_on_and_picked_up() {
         .offer(Offer {
             source: "laptop".into(),
             relays: Vec::new(),
+            ..Offer::default()
         })
         .unwrap();
     super::super::shared::save(&file, &withdrawn).unwrap();

@@ -1,5 +1,6 @@
 //! `app`, `window`, and `ui`.
 use super::{Args, CliError, FontSize, Size, Switch, switch, unknown};
+use sheprd_control_protocol::protocol::app::TraceFilter;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AppCommand {
@@ -27,6 +28,8 @@ pub enum WindowCommand {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum UiCommand {
+    Traces,
+    TracesFilter(TraceFilter),
     Sidebar(Switch),
     StatusBar(Switch),
     MenuBar(Switch),
@@ -88,14 +91,36 @@ fn size(text: std::ffi::OsString) -> Result<Size, CliError> {
 
 /// The panel names `ui panel` takes, as its errors and help name them.
 const PANELS: &str =
-    "workspaces|overview|pull-requests|issues|tasks|security|automations|ports|usage";
+    "workspaces|overview|pull-requests|issues|tasks|security|automations|ports|usage|traces";
 
 pub(super) fn ui(args: &mut Args) -> Result<UiCommand, CliError> {
     let verb = args.verb().ok_or(CliError::MissingArgument {
         command: "ui",
-        what: "sidebar|statusbar|menubar|font-size|panel|agent-group",
+        what: "sidebar|statusbar|menubar|font-size|panel|agent-group|traces",
     })?;
     Ok(match verb.to_str() {
+        Some("traces") => {
+            let host = args.text_option("--host")?;
+            let tag = args.text_option("--tag")?;
+            let all = args.flag("--all");
+            if (host.is_some() && (tag.is_some() || all)) || (tag.is_some() && all) {
+                return Err(CliError::InvalidValue("one of --host, --tag, or --all"));
+            }
+            match (host, tag, all) {
+                (Some(id), _, _) if !id.is_empty() && id.len() <= 512 => {
+                    UiCommand::TracesFilter(TraceFilter::Host { id })
+                }
+                (None, Some(tag), _)
+                    if sheprd_client::device_tags::normalized(&tag).as_deref()
+                        == Some(tag.as_str()) =>
+                {
+                    UiCommand::TracesFilter(TraceFilter::Tag { tag })
+                }
+                (None, None, true) => UiCommand::TracesFilter(TraceFilter::All),
+                (None, None, false) => UiCommand::Traces,
+                _ => return Err(CliError::InvalidValue("trace host ID or device tag")),
+            }
+        }
         Some("sidebar") => UiCommand::Sidebar(switch(args.positional())?),
         Some("statusbar" | "status-bar") => UiCommand::StatusBar(switch(args.positional())?),
         Some("menubar" | "menu-bar") => UiCommand::MenuBar(switch(args.positional())?),

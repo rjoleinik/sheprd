@@ -29,6 +29,24 @@ netlify deploy --prod --dir=website/site --no-build
 
 This skips Netlify's build pipeline; production uploads are serialized.
 
+To deploy by hand, run `just site-deploy` from a clean checkout of a commit on
+`origin/main`. It does what the workflow's `deploy` job does: generates the
+docs in a throwaway venv, then runs the command above against the sheprd.org
+project. Never run that `netlify deploy` alone: without the generated
+`site/docs/`, production loses <https://sheprd.org/docs/>. The recipe needs the
+`netlify` CLI, logged in with `netlify login` or given `NETLIFY_AUTH_TOKEN`
+(`NETLIFY_SITE_ID` overrides the project). `--dry-run` does everything but the
+upload; `--allow-unpublished` deploys a dirty tree or a commit not on
+`origin/main`.
+
+A local deploy cannot sign the relay list: `relays.json.sig` comes only from
+the workflow's `sign-relays` job, whose key stays in CI. The recipe deletes
+any local `site/relays.json.sig` rather than publish a stale one, so
+production serves `relays.json` unsigned by CI until the workflow deploys
+again. Clients ignore a list neither signer signed and keep their last good
+one (`docs/relay-plan.md`), so rerun the workflow (**Actions → Deploy website
+→ Run workflow**) after a manual deploy.
+
 `herdrui/` is the separate Cloudflare Worker for herdrui.dev, and is not
 published by Netlify; see [`herdrui/README.md`](herdrui/README.md).
 

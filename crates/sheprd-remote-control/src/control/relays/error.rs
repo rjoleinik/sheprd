@@ -10,6 +10,8 @@ pub enum Error {
     },
     #[error("the source name is empty or too long")]
     Source,
+    #[error("a relay's listen token is 16 to 255 characters, without spaces")]
+    Token,
     #[error("too many computers share relays with this one")]
     TooManySources,
     // keep-sorted end

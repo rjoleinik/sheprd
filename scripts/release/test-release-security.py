@@ -47,15 +47,37 @@ class ReleaseTargets(unittest.TestCase):
             self.assertIn("github.repository == 'sheprd-labs/sheprd'", job)
         # Keeps every main cache inside the repository's 10 GB cache budget.
         self.assertIn("\nenv:\n  CARGO_PROFILE_DEV_DEBUG: '0'\n\njobs:\n", workflow)
-        self.assertIn("    needs: [checks, windows, windows-native, windows-package, build-macos, commits, website, zizmor]\n",
+        self.assertIn("    needs: [checks, windows, windows-native, windows-package, build-macos, relay-agent, commits, website, zizmor]\n",
                       jobs["checks-passed"])
         # The workflow audit runs beside the other jobs, so the gate requires it.
         self.assertIn('test "$COMMITS" = success && test "$ZIZMOR" = success || exit 1',
                       jobs["checks-passed"])
-        self.assertIn('test "$RESULT" = success && test "$WINDOWS" = success', jobs["checks-passed"])
+        self.assertIn('test "$RESULT" = success || exit 1', jobs["checks-passed"])
         self.assertIn('test "$CODE" = false && test "$RESULT" = skipped && test "$WINDOWS" = skipped', jobs["checks-passed"])
         for name in ("checks", "windows", "build"):
             self.assertIn("needs.commits.outputs.code == 'true'", jobs[name])
+        # Pull requests may run Linux alone (scripts/ci-scope.py); main and the
+        # merge queue must run every platform, which the gate checks itself
+        # rather than trusting the selection.
+        self.assertIn("    types: [opened, synchronize, reopened, labeled, ready_for_review]\n  # ", workflow)
+        self.assertIn("\n  merge_group:\n", workflow)
+        self.assertIn("python3 scripts/ci-scope.py >> \"$GITHUB_OUTPUT\"", jobs["commits"])
+        self.assertIn("python3 scripts/test_ci_scope.py", jobs["commits"])
+        self.assertIn("FULL: ${{ needs.commits.outputs.full }}", jobs["checks-passed"])
+        self.assertIn('if [ "$EVENT" != pull_request ]; then\n'
+                      '            test "$FULL" = true && test "$WINDOWS_SCOPE" = true || exit 1\n',
+                      jobs["checks-passed"])
+        self.assertIn('if [ "$WINDOWS_SCOPE" = true ]; then\n              test "$WINDOWS" = success || exit 1\n',
+                      jobs["checks-passed"])
+        self.assertIn('test "$WINDOWS_SCOPE" = false && test "$WINDOWS" = skipped', jobs["checks-passed"])
+        self.assertIn("WINDOWS_SCOPE: ${{ needs.commits.outputs.windows }}", jobs["checks-passed"])
+        self.assertIn("windows: ${{ steps.scope.outputs.windows }}", jobs["commits"])
+        # Windows runs for what a Windows build reads (scripts/ci-scope.py).
+        for name in ("windows", "windows-native", "windows-package"):
+            self.assertIn("needs.commits.outputs.windows == 'true'", jobs[name])
+        self.assertIn("needs.commits.outputs.full == 'true'", jobs["build-macos"])
+        for name in ("checks", "windows", "windows-native", "checks-passed"):
+            self.assertIn("github.event_name == 'merge_group'", jobs[name])
         self.assertIn("needs.commits.outputs.macos_release == 'true'", jobs["build-macos"])
         self.assertIn("needs.commits.outputs.windows_native == 'true'", jobs["windows-native"])
         for name in ("checks", "windows", "windows-native", "build", "build-macos"):
@@ -64,6 +86,8 @@ class ReleaseTargets(unittest.TestCase):
         self.assertIn("          fetch-depth: 0\n", jobs["commits"])
         self.assertIn("python3 scripts/release/check-commit-messages.py range", jobs["commits"])
         self.assertIn("runner: [macos-15, ubuntu-24.04, ubuntu-24.04-arm]\n", jobs["checks"])
+        # Which legs each pull request runs: test_ci_macos_runners.py.
+        self.assertIn("        exclude: ${{ fromJSON(github.event_name != 'pull_request' && '[]' || ", jobs["checks"])
         self.assertIn("    name: Format, lint, and test\n", jobs["checks-passed"])
         self.assertIn("always()", jobs["checks-passed"])
         self.assertIn('test "$RESULT" = success', jobs["checks-passed"])
@@ -71,10 +95,10 @@ class ReleaseTargets(unittest.TestCase):
         self.assertNotIn("github.event_name == 'pull_request'", jobs["build"])
         self.assertNotIn("apple-darwin", jobs["build"])
         # The macOS release builds hold no runner on main, where the release
-        # workflow's macOS builds wait for the account-wide macOS limit; pull
-        # requests keep their release-mode CLI suite, and the gate requires it.
+        # workflow's macOS builds wait for the account-wide macOS limit; the
+        # merge queue keeps their release-mode CLI suite, and the gate requires it.
         macos = jobs["build-macos"]
-        self.assertIn("github.event_name == 'pull_request'", macos)
+        self.assertIn("(github.event_name == 'pull_request' || github.event_name == 'merge_group')", macos)
         self.assertNotIn("refs/heads/main", macos)
         self.assertIn("target: [aarch64-apple-darwin, x86_64-apple-darwin]\n", macos)
         for command in ('cargo build --locked --release -p sheprd-gpui --target "$TARGET"',
@@ -95,26 +119,35 @@ class ReleaseTargets(unittest.TestCase):
         # Each platform splits into a default-features and an all-features
         # leg that run side by side; every check runs in exactly one of them.
         legs = {"cargo fmt --all -- --check": "default",
-                "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings": "all",
-                "cargo clippy --locked --workspace --all-targets --no-default-features -- -D warnings": "default",
-                "cargo test --locked --workspace": "default",
-                "cargo test --locked --workspace --all-features": "all"}
+                "cargo clippy --locked {} --all-targets --all-features -- -D warnings": "all",
+                "cargo clippy --locked {} --all-targets --no-default-features -- -D warnings": "default",
+                "cargo test --locked {}": "default",
+                "cargo test --locked {} --all-features": "all"}
+        # The checks job lints and tests the crates ci-scope.py selected
+        # (the workspace on main); Windows runs only with every platform.
+        scoped = ("        if: matrix.features == '{leg}' && env.SCOPE != ''\n"
+                  "        run: read -ra scope <<< \"$SCOPE\" && {command}\n")
+        self.assertIn("      SCOPE: ${{ needs.commits.outputs.cargo_scope }}\n", jobs["checks"])
         for name in ("checks", "windows"):
             self.assertIn("        features: [default, all]\n", jobs[name])
             self.assertIn("${{ matrix.features }})\n", re.search(r"^    name: .+\n", jobs[name], re.M)[0])
             self.assertIn("${{ matrix.features }}\n          save-if:", jobs[name])
             for command, leg in legs.items():
-                self.assertIn(f"        if: matrix.features == '{leg}'\n        run: {command}\n", jobs[name])
+                if name == "windows" or "{}" not in command:
+                    line = f"        if: matrix.features == '{leg}'\n        run: {command.format('--workspace')}\n"
+                else:
+                    line = scoped.format(leg=leg, command=command.format('"${scope[@]}"'))
+                self.assertIn(line, jobs[name])
         for command in ("python3 -m unittest discover -s scripts/release/tests -v",
                         "bash scripts/check-file-size.sh", "python3 scripts/check-sorted.py",
                         "python3 .claude/skills/gpui-mockup/scripts/test_wait.py"):
             self.assertEqual(jobs["checks"].count(command), 1, command)
         self.assertNotIn("--release", windows)
         self.assertNotIn("cargo build", windows)
-        # The installer check runs only for its inputs, and the gate requires
-        # it then, and its absence otherwise.
+        # The installer check runs only for its inputs and with every
+        # platform, and the gate requires it then, and its absence otherwise.
         package = jobs["windows-package"]
-        self.assertIn("needs.commits.outputs.windows_package == 'true'", package)
+        self.assertIn("needs.commits.outputs.windows_package == 'true' && needs.commits.outputs.windows == 'true'", package)
         self.assertIn("    needs: commits\n", package)
         self.assertNotIn("secrets.", package)
         # Bash, so "$TARGET" and friends expand on the Windows runner.
@@ -126,9 +159,10 @@ class ReleaseTargets(unittest.TestCase):
                         'python scripts/release/windows-installer.py smoke'):
             self.assertIn(command, package)
         self.assertIn("windows_package: ${{ steps.changes.outputs.windows_package }}", jobs["commits"])
-        # Native Windows GUI tests run for what the app is built from (on main,
-        # for any code change), against the pinned daemon only, and the gate
-        # requires them then, and their absence otherwise.
+        # Native Windows GUI tests run with every platform for what the app is
+        # built from (on main and in the merge queue, for any code change),
+        # against the pinned daemon only, and the gate requires them then,
+        # and their absence otherwise.
         native = jobs["windows-native"]
         self.assertIn("needs.commits.outputs.windows_native == 'true'", native)
         self.assertIn("        runner: [windows-2025, windows-11-arm]\n", native)
@@ -139,10 +173,12 @@ class ReleaseTargets(unittest.TestCase):
             self.assertIn(command, native)
         self.assertIn("NATIVE: ${{ needs.windows-native.result }}", jobs["checks-passed"])
         self.assertIn('test "$NATIVE" = success', jobs["checks-passed"])
-        self.assertIn('test "$NATIVE_INPUTS" = false && test "$NATIVE" = skipped', jobs["checks-passed"])
+        self.assertIn('{ [ "$NATIVE_INPUTS" = false ] || [ "$WINDOWS_SCOPE" = false ]; } && test "$NATIVE" = skipped', jobs["checks-passed"])
         self.assertIn("PACKAGE: ${{ needs.windows-package.result }}", jobs["checks-passed"])
         self.assertIn('test "$PACKAGE" = success', jobs["checks-passed"])
-        self.assertIn('test "$PACKAGE_INPUTS" = false && test "$PACKAGE" = skipped', jobs["checks-passed"])
+        self.assertIn('{ [ "$PACKAGE_INPUTS" = false ] || [ "$WINDOWS_SCOPE" = false ]; } && test "$PACKAGE" = skipped', jobs["checks-passed"])
+        # The optimized performance build waits for the merge queue and main.
+        self.assertIn("      - name: Release-mode performance budget\n        if: github.event_name != 'pull_request'\n", native)
 
     def test_workflow_and_metadata_contract(self):
         # Keep this offline and dependency-free; actionlint validates YAML syntax.
@@ -625,7 +661,8 @@ class ReleaseSecurity(unittest.TestCase):
             *(f"sheprd-remote-control-20260920.1-{target}"
               for target in ("x86_64-unknown-linux-musl", "aarch64-unknown-linux-musl")),
             "host-manifest.json", "host-manifest.sig",
-            "sheprd-acp-20260920.1-linux-musl.tar.gz"})
+            "sheprd-acp-20260920.1-linux-musl.tar.gz",
+            "sheprd-relay-agent-20260920.1.tar.gz"})
         # Five files per base asset; SHA256SUMS lists all but itself.
         assets = len(MANIFEST.base_names(VERSION)) * 5 + len(MANIFEST.package_aliases(VERSION))
         self.assertEqual(len((self.path / "SHA256SUMS").read_text().splitlines()), assets)

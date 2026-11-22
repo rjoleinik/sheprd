@@ -73,8 +73,9 @@ struct PullRequestsList: View {
         .gitHubRefresh(showsLists: true)
         .navigationDestination(for: PullRequestRoute.self) { route in
             PullRequestDetailScreen(route: route, title: direct.title(for: route))
+                .makesRoomForConnectionToast()
         }
-        .navigationDestination(item: $opened) { WorkspaceScreen(key: $0) }
+        .navigationDestination(item: $opened) { WorkspaceScreen(key: $0).makesRoomForConnectionToast() }
     }
 
     private var list: some View {
@@ -193,7 +194,7 @@ struct PullRequestsList: View {
             } description: {
                 Text("Sign in to GitHub on this \(UIDevice.current.model), or let a paired computer lend its sign-in.")
             } actions: {
-                NavigationLink("Open Settings › GitHub") { GitHubSettingsView() }
+                NavigationLink("Open Settings › GitHub") { GitHubSettingsView().makesRoomForConnectionToast() }
                     .buttonStyle(.borderedProminent)
             }
         case .unread:

@@ -3,7 +3,7 @@ use gpui::{Empty, div};
 use std::borrow::Cow;
 
 fn widths(line: Line<'_>) -> Vec<f32> {
-    line.widths()
+    line.widths().0
 }
 
 #[test]
@@ -25,6 +25,18 @@ fn short_lines_shrink_labels_before_fixed_pieces_and_never_go_negative() {
     assert_eq!(widths(line), vec![20., 0., 2.]);
     let line = Line::new(10., 4.).fixed(20., Empty).fill(div(), "name");
     assert_eq!(widths(line), vec![20., 0.]);
+}
+
+#[test]
+fn short_lines_reduce_gaps_when_the_marks_leave_too_little_room() {
+    let line = Line::new(80., 6.)
+        .fixed(72., Empty)
+        .shrink(24., div())
+        .fill(div(), "name");
+    let (widths, gap) = line.widths();
+    assert_eq!(widths, vec![72., 0., 0.]);
+    assert_eq!(gap, 4.);
+    assert_eq!(widths.iter().sum::<f32>() + gap * 2., 80.);
 }
 
 #[test]

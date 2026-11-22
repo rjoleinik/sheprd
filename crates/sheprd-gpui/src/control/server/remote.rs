@@ -1,19 +1,24 @@
-//! `remote status`, `remote devices`, `remote pair`, `remote revoke`, and
-//! `remote restart`.
+//! `remote status`, `remote devices`, `remote push-status`, `remote pair`,
+//! `remote revoke`, `remote restart`, and `remote relays token`.
 //! The daemon is asked on the background executor. Pairing and revoking
 //! open the window's own dialogs, where the user approves a device or
-//! confirms the revoke; neither happens from here.
+//! confirms the revoke; neither happens from here. A listen token is the
+//! user's own, piped by them, so it is kept without asking, and never
+//! answered back or logged.
 use super::{Watches, in_free_window, settings::answer_when_done, socket, window_for};
 use crate::{
     control::protocol::{
         Call, ErrorCode, Response,
         remote::{RemoteOp, Reply},
     },
-    remote::Supervisor,
+    relay_sharing::RelaySharing,
+    remote::{Supervisor, relay_token},
 };
 use gpui::App;
 use sheprd_remote_control::control::{Device, Request};
 use std::time::Duration;
+
+mod push_status;
 
 const OFF: &str = "Remote control is off; turn it on in Settings > Remote control";
 
@@ -25,12 +30,30 @@ pub(super) fn serve(
 ) {
     let wait = Duration::from_secs(call.op.wait_seconds());
     let Call { caller, op } = call;
-    let enabled = match window_for(&caller, cx) {
+    let (enabled, push_relay) = match window_for(&caller, cx) {
         Ok(handle) => handle
-            .read_with(cx, |view, _| view.config.remote.enabled)
-            .unwrap_or(false),
+            .read_with(cx, |view, _| {
+                (view.config.remote.enabled, view.config.remote.push_relay)
+            })
+            .unwrap_or_default(),
         Err(response) => return incoming.respond(response),
     };
+    // Another computer's link: this computer's remote control plays no
+    // part, as Add Device does not need it on.
+    if let RemoteOp::AddLink { link } = op {
+        return incoming.respond(in_free_window(&caller, cx, |view, window, cx| {
+            if view.open_pairing_link(&link.0, window, cx) {
+                Response::done(
+                    "Showing Add Device > Nearby Sheprd with the link; the user clicks Pair there",
+                )
+            } else {
+                Response::error(
+                    ErrorCode::Unsupported,
+                    "Add Device is not available in this window",
+                )
+            }
+        }));
+    }
     if let RemoteOp::Pair { address } = op {
         return incoming.respond(in_free_window(&caller, cx, |view, window, cx| {
             if !enabled {
@@ -45,6 +68,20 @@ pub(super) fn serve(
                 )
             }
         }));
+    }
+    // A token may be kept before remote control is on or the relay is in
+    // `[remote] relays`: the daemon reads it when it next listens there.
+    if let RemoteOp::RelayToken { relay, token } = op {
+        return match keep_token(&relay, token, cx) {
+            Ok(task) => answer_when_done(task, wait, incoming, watches, cx),
+            Err(response) => incoming.respond(response),
+        };
+    }
+    if op == RemoteOp::PushStatus {
+        return match push_status::serve(enabled, push_relay, cx) {
+            Ok(task) => answer_when_done(task, wait, incoming, watches, cx),
+            Err(response) => incoming.respond(response),
+        };
     }
     if !enabled && op != RemoteOp::Status {
         return incoming.respond(Response::error(ErrorCode::Failed, OFF));
@@ -124,9 +161,69 @@ pub(super) fn serve(
                 })
             })
         }
-        RemoteOp::Pair { .. } | RemoteOp::Restart => return,
+        RemoteOp::TestPush => {
+            let request = client.request(Request::TestPush);
+            cx.spawn(async move |_| match request.await {
+                Ok(sheprd_remote_control::control::Response::TestPushed(answer)) => {
+                    Response::Remote {
+                        reply: Reply::TestPush {
+                            mode: answer.mode,
+                            pushes: answer.pushes,
+                        },
+                    }
+                }
+                Ok(_) => Response::error(
+                    ErrorCode::Failed,
+                    crate::remote::Error::Unexpected.to_string(),
+                ),
+                // An older daemon closes without answering.
+                Err(error) => Response::error(
+                    ErrorCode::Failed,
+                    format!("Could not send a test push: {error}; restart remote control if it is older than this Sheprd"),
+                ),
+            })
+        }
+        RemoteOp::AddLink { .. }
+        | RemoteOp::Pair { .. }
+        | RemoteOp::PushStatus
+        | RemoteOp::Restart
+        | RemoteOp::RelayToken { .. } => return,
     };
     answer_when_done(task, wait, incoming, watches, cx);
+}
+
+/// Keeps or forgets this computer's listen token for `relay` off the UI
+/// thread, then has the user's other machines offered it again.
+fn keep_token(
+    relay: &str,
+    token: Option<relay_token::ListenToken>,
+    cx: &mut App,
+) -> Result<gpui::Task<Response>, Response> {
+    let relay = normalized(relay)?;
+    let kept = token.is_some();
+    let save = cx.background_executor().spawn({
+        let relay = relay.clone();
+        async move { relay_token::save(&relay, token) }
+    });
+    Ok(cx.spawn(async move |cx| match save.await {
+        Ok(()) => {
+            cx.update(RelaySharing::tokens_changed);
+            Response::Remote {
+                reply: Reply::RelayToken { relay, token: kept },
+            }
+        }
+        Err(error) => Response::error(
+            ErrorCode::Failed,
+            format!("Could not keep the listen token for {relay}: {error}"),
+        ),
+    }))
+}
+
+/// `relay` as the daemon keys its tokens, or why it is no relay address.
+pub(super) fn normalized(relay: &str) -> Result<String, Response> {
+    sheprd_relay::Endpoint::parse(relay)
+        .map(|endpoint| endpoint.to_string())
+        .map_err(|_| Response::error(ErrorCode::InvalidRequest, "Not a relay address"))
 }
 
 /// Starts the restart; its outcome shows in Settings like any service

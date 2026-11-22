@@ -41,6 +41,9 @@ pub(crate) struct Tags {
 }
 
 impl Tags {
+    pub(crate) fn record(&self, id: &str) -> Option<&ComputerTags> {
+        self.records.get(id)
+    }
     pub(crate) fn of(&self, id: &str) -> &[String] {
         self.records
             .get(id)

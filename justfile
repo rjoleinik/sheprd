@@ -1,13 +1,15 @@
 default:
     @just --list
 
-# Sheprd in a Moonframe window (the `moonframe` feature), on your settings and
-# daemon: quit Sheprd first. `just run-moonframe --check` checks the Luau.
+# Sheprd's Moonframe window for working on its Luau (`moonframe-studio`): the
+# layout read from `crates/sheprd-gpui/moonframe/app`, reloaded on save, and
+# the sparkles agent editing it there. On your settings and daemon: quit
+# Sheprd first. `just run-moonframe --check` checks the Luau.
 # Built in its own target directory, so it never replaces `target/release/sheprd`;
 # the helpers the app finds beside itself (`sheprd-acp`, `sheprd-automate`) too.
 run-moonframe *args:
     cargo build --locked --release -p sheprd-acp -p sheprd-automate --target-dir target/moonframe
-    cargo run --locked --release -p sheprd-gpui --features moonframe --target-dir target/moonframe -- {{args}}
+    cargo run --locked --release -p sheprd-gpui --features moonframe-studio --target-dir target/moonframe -- {{args}}
 
 # Launch the bundle so macOS reads Sheprd's identity and privacy declarations.
 run *args:
@@ -110,14 +112,13 @@ test-perf budget="30":
     cargo build --locked --release -p sheprd-gpui --features integration-test
     HERDR_PERF_P95_MS="{{budget}}" target/release/sheprd --performance-test
 
-# Frame times and CPU of `sheprd` with and without the `moonframe` feature on
+# Frame times and CPU of the release build's classic and Moonframe windows on
 # one workload, each on a private daemon started from `herdr`, as the median of
 # `rounds`; opens windows, so it needs a desktop. `scripts/bench_frames.py
 # --help` for more.
 bench-moonframe herdr rounds="3":
     cargo build --locked --release -p sheprd-gpui
-    cargo build --locked --release -p sheprd-gpui --features moonframe --target-dir target/moonframe
-    scripts/bench_frames.py --herdr "{{herdr}}" --rounds "{{rounds}}" main=target/release/sheprd moonframe=target/moonframe/release/sheprd
+    scripts/bench_frames.py --herdr "{{herdr}}" --rounds "{{rounds}}" "classic=target/release/sheprd --classic" moonframe=target/release/sheprd
 
 # Compare UI variants written as GPUI code in `file` (the built-in demo when
 # empty) in a native window. "Send to agent" types the notes into the calling
@@ -211,6 +212,9 @@ bundle profile="release" features="":
     # it the app pairs over the network only.
     xcrun swiftc -O -swift-version 6 macos/sheprd-nearby/main.swift macos/sheprd-nearby/Framing.swift \
         macos/sheprd-nearby/Bonjour.swift macos/sheprd-nearby/Central.swift -o "$app/Contents/MacOS/sheprd-nearby"
+    # Every virtual Mac mounts this disk: the installer of Sheprd Agent,
+    # which lets agents work inside it.
+    bash scripts/build-machine-agent.sh "$app/Contents/Resources/MachineAgent.img"
     # Herdr 2 terminals run in the pinned herdr-core beside it, as releases
     # bundle it. Fetched once per profile; an offline build goes on without.
     core=target/{{profile}}/herdr-core
@@ -241,8 +245,9 @@ bundle profile="release" features="":
     # The linker's ad-hoc signature names the bare executable and binds no
     # Info.plist, so services that trust the bundle ID refuse the app:
     # notification authorization fails without a prompt. Ad-hoc sign the
-    # assembled bundle so its identity is so.pen.herdr-gpui.dev.
-    codesign --force --sign - "$app"
+    # assembled bundle so its identity is so.pen.herdr-gpui.dev. Machine tabs
+    # need the entitlements: Virtualization refuses a process without its own.
+    codesign --force --sign - --entitlements assets/macos/Sheprd.entitlements "$app"
 
 # Link the actual optimized application and exercise its CLI without a desktop.
 test-build: build-release
@@ -278,18 +283,22 @@ ios-generate:
     cd ios && xcodegen -q
     python3 ios/tools/test_branding.py
 
+# The fleet log library the app links, built from Rust (ios/tools/build-fleet-ffi.sh).
+ios-fleet-ffi:
+    sh ios/tools/build-fleet-ffi.sh
+
 # Swift package tests, against the fixtures the daemon's Rust tests write.
-ios-test:
+ios-test: ios-fleet-ffi
     PYTHONDONTWRITEBYTECODE=1 python3 ios/tools/test_testflight_notes.py
     PYTHONDONTWRITEBYTECODE=1 python3 ios/tools/test_signing.py
     cd ios/SheprdRemoteCore && swift test
 
 # Unsigned build of the app and its extensions for the simulator.
-ios-build: ios-generate
+ios-build: ios-fleet-ffi ios-generate
     cd ios && xcodebuild -project SheprdRemote.xcodeproj -scheme SheprdRemote -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO -quiet build
 
 # Archive and upload to TestFlight, taking the key from `pass` when unset.
-ios-testflight:
+ios-testflight: ios-fleet-ffi
     #!/usr/bin/env bash
     set -euo pipefail
     # CI sets these from the `testflight` environment's secrets; here what
@@ -320,6 +329,63 @@ test-mockup-wait:
 
 test-pr-closure:
     PYTHONDONTWRITEBYTECODE=1 python3 scripts/test_close_low_confidence_prs.py
+
+# Mirrors the `deploy` job of .github/workflows/site.yml from this checkout:
+# generate /docs in a throwaway venv,
+# then upload website/site with no Netlify build. It refuses a dirty tree or
+# a commit not on origin/main unless given `--allow-unpublished`;
+# `--dry-run` does everything but the upload. Needs the `netlify` CLI, logged
+# in (`netlify login`) or given NETLIFY_AUTH_TOKEN; NETLIFY_SITE_ID overrides
+# the site. relays.json.sig is signed only by CI's `sign-relays` job, so this
+# deploy publishes none (any local one is deleted, never uploaded stale):
+# clients keep their last good relay list until the next CI deploy signs it.
+#
+# Deploy sheprd.org to Netlify production, docs included, without a Netlify build.
+site-deploy *flags:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    allow_unpublished=0 dry_run=0
+    for flag in {{flags}}; do
+        case "$flag" in
+            --allow-unpublished) allow_unpublished=1 ;;
+            --dry-run) dry_run=1 ;;
+            *) echo "error: unknown flag $flag (expected --allow-unpublished or --dry-run)" >&2; exit 2 ;;
+        esac
+    done
+    site_id="${NETLIFY_SITE_ID:-3847f83c-d98c-47f1-8306-ad63e64ece75}"
+    command -v netlify >/dev/null || { echo "error: the netlify CLI is missing: npm install --global netlify-cli" >&2; exit 1; }
+    netlify api getCurrentUser >/dev/null 2>&1 || { echo "error: netlify is not logged in: run netlify login or set NETLIFY_AUTH_TOKEN" >&2; exit 1; }
+    dirty="$(git status --porcelain --untracked-files=all)"
+    git fetch --quiet origin main
+    published=1
+    git merge-base --is-ancestor HEAD origin/main || published=0
+    if [ -n "$dirty" ] || [ "$published" = 0 ]; then
+        [ -n "$dirty" ] && { echo "The working tree is not clean:"; echo "$dirty"; } >&2
+        [ "$published" = 0 ] && echo "HEAD $(git rev-parse --short HEAD) is not on origin/main." >&2
+        if [ "$allow_unpublished" = 0 ]; then
+            echo "error: refusing to deploy; pass --allow-unpublished to deploy it anyway" >&2
+            exit 1
+        fi
+        echo "Deploying anyway (--allow-unpublished)." >&2
+    fi
+    venv="$(mktemp -d "${TMPDIR:-/tmp}/sheprd-docs-venv.XXXXXX")"
+    trap 'rm -rf "$venv"' EXIT
+    python3 -m venv "$venv"
+    PIP_DISABLE_PIP_VERSION_CHECK=1 "$venv/bin/pip" install --quiet --require-hashes -r website/requirements.txt
+    "$venv/bin/python" website/tools/docs.py
+    test -f website/site/docs/index.html || { echo "error: website/site/docs/index.html was not generated" >&2; exit 1; }
+    if [ -e website/site/relays.json.sig ]; then
+        echo "Removing website/site/relays.json.sig: only CI signs the relay list." >&2
+        rm -f website/site/relays.json.sig
+    fi
+    deploy=(netlify deploy --prod --dir=website/site --no-build --site "$site_id"
+        --message "just site-deploy $(git rev-parse --short HEAD)")
+    if [ "$dry_run" = 1 ]; then
+        echo "Dry run; would run: ${deploy[*]}"
+        exit 0
+    fi
+    echo "Publishing without relays.json.sig; the next CI deploy signs the relay list again." >&2
+    "${deploy[@]}"
 
 # Sheprd's public relay list, website/site/relays.json, which clients take
 # only when signed (docs/relay-plan.md). Each recipe stamps a new serial and

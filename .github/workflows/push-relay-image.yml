@@ -16,6 +16,7 @@ on:
     branches: [main]
     paths:
       - 'crates/sheprd-apns/**'
+      - 'crates/sheprd-dashboard/**'
       - 'crates/sheprd-push-relay/**'
       - 'Cargo.lock'
       - 'Cargo.toml'
@@ -29,6 +30,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'crates/sheprd-apns/**'
+      - 'crates/sheprd-dashboard/**'
       - 'crates/sheprd-push-relay/**'
       - 'Cargo.lock'
       - 'Cargo.toml'
@@ -191,7 +193,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
       # Pinned like release.yml, so signatures stay in the format deploys
       # verify.
-      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
         with:
           cosign-release: 'v2.6.5'
       - name: Sign

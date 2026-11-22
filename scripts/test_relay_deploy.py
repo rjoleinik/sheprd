@@ -1,6 +1,7 @@
 """The relay's DigitalOcean user data, rendered the way create-droplet.sh
-renders it, picks the domain it was given, or IP.sslip.io without one, and
-runs only a relay image whose signature it verified."""
+renders it, picks the domain it was given, or IP.sslip.io without one, keeps
+the relay to computers with its listen token unless it is open, and runs
+only a relay image whose signature it verified."""
 
 import json
 import os
@@ -12,17 +13,43 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLOUD_INIT = os.path.join(ROOT, "deploy", "relay", "cloud-init.yml")
+CREATE_DROPLET = os.path.join(ROOT, "deploy", "relay", "create-droplet.sh")
+LISTEN_TOKEN = "q2Xv-Jk_8sQb3N7mZp0aW4yRt6uE1oLcHd9fGi5BjKw"
+TOKEN = re.compile(r"[A-Za-z0-9_-]{43}")
 
 
-def rendered(domain: str) -> str:
-    """cloud-init.yml after create-droplet.sh's sed substitution."""
+def rendered(domain: str, listen_token: str = "open") -> str:
+    """cloud-init.yml after create-droplet.sh's substitution."""
     with open(CLOUD_INIT, encoding="utf-8") as file:
         text = file.read()
     return (
         text.replace("__COMPOSE_B64__", "Y29tcG9zZQ==")
         .replace("__CADDYFILE_B64__", "Y2FkZHk=")
         .replace("__RELAY_DOMAIN__", domain)
+        .replace("__RELAY_LISTEN_TOKEN__", listen_token)
     )
+
+
+def first_secrets(text: str) -> tuple[str, str]:
+    """Runs start.sh's first-boot secrets block for relay.example.org in an
+    empty directory, and returns the .env and the login file it writes."""
+    block = re.search(r"\n(\s*)if \[ ! -f \.env \]; then\n.*?\n\1fi\n", text, re.S)
+    assert block, "start.sh's secrets block is missing"
+    script = "\n".join(line.strip() for line in block.group(0).splitlines())
+    with tempfile.TemporaryDirectory() as directory:
+        login = os.path.join(directory, "login.txt")
+        script = 'domain=relay.example.org\n' + script.replace("/root/sheprd-relay-login.txt", login)
+        subprocess.run(["sh", "-c", script], cwd=directory, check=True)
+        with open(os.path.join(directory, ".env"), encoding="utf-8") as env, open(login, encoding="utf-8") as file:
+            return env.read(), file.read()
+
+
+def script_function(name: str) -> str:
+    """One of create-droplet.sh's shell functions, as its source."""
+    with open(CREATE_DROPLET, encoding="utf-8") as file:
+        block = re.search(rf"\n{name}\(\) \{{\n.*?\n\}}\n", file.read(), re.S)
+    assert block, f"create-droplet.sh's {name} is missing"
+    return block.group(0)
 
 
 def chosen_domain(text: str) -> str:
@@ -128,6 +155,42 @@ class StartTest(unittest.TestCase):
         self.assertEqual({arch for arch, _ in hashes}, {"amd64", "arm64"})
 
 
+class ListenTokenTest(unittest.TestCase):
+    def test_a_filled_token_keeps_the_relay_to_its_computers(self) -> None:
+        env, login = first_secrets(rendered("", LISTEN_TOKEN))
+        self.assertIn(f"\nRELAY_LISTEN_TOKEN={LISTEN_TOKEN}\n", env)
+        self.assertIn(f"listen token: {LISTEN_TOKEN}\n", login)
+        self.assertIn(
+            f"sheprd://relay?endpoint=https%3A%2F%2Frelay.example.org&token={LISTEN_TOKEN}\n", login
+        )
+
+    def test_open_or_unfilled_leaves_the_relay_open(self) -> None:
+        with open(CLOUD_INIT, encoding="utf-8") as file:
+            unfilled = file.read()
+        for text in (rendered("", "open"), unfilled):
+            env, login = first_secrets(text)
+            self.assertIn("RELAY_DASHBOARD_TOKEN=", env)
+            self.assertNotIn("LISTEN_TOKEN", env)
+            self.assertNotIn("listen token", login)
+
+    def test_the_token_reaches_the_relay_container(self) -> None:
+        with open(os.path.join(ROOT, "deploy", "relay", "compose.yml"), encoding="utf-8") as file:
+            self.assertIn("env_file: .env", file.read())
+
+    def test_create_droplet_makes_a_token_unless_open(self) -> None:
+        with open(CREATE_DROPLET, encoding="utf-8") as file:
+            script = file.read()
+        self.assertIn('if [ "${RELAY_OPEN:-}" != 1 ]; then', script)
+        tokens = subprocess.run(
+            ["bash", "-c", script_function("listen_token") + "listen_token; echo; listen_token"],
+            check=True, capture_output=True, text=True,
+        ).stdout.split()
+        self.assertEqual(len(tokens), 2)
+        self.assertNotEqual(tokens[0], tokens[1])
+        for token in tokens:
+            self.assertRegex(token, TOKEN.pattern + "$")
+
+
 class BansTest(unittest.TestCase):
     def test_the_ban_list_is_readable_by_the_relay(self) -> None:
         self.assertEqual(bans_mode(rendered("")), (0o755, 0o644))
@@ -174,31 +237,35 @@ class DomainTest(unittest.TestCase):
 PAGE_SCRIPT = os.path.join(ROOT, "website", "site", "relay", "deploy.js")
 
 
-def page_rendered(domain: str) -> str:
+def page_rendered(domain: str, listen_token: str) -> str:
     """The user data sheprd.org/relay sends, from deploy.js's render."""
     sources = [os.path.join(ROOT, "deploy", "relay", name) for name in ("cloud-init.yml", "compose.yml", "Caddyfile")]
     script = (
         "const fs = require('fs');"
         f"const page = require({json.dumps(PAGE_SCRIPT)});"
-        "const [a, b, c, d] = process.argv.slice(1);"
-        "process.stdout.write(page.render(...[a, b, c].map(p => fs.readFileSync(p, 'utf8')), d));"
+        "const [a, b, c, d, e] = process.argv.slice(1);"
+        "process.stdout.write(page.render(...[a, b, c].map(p => fs.readFileSync(p, 'utf8')), d, e));"
     )
     return subprocess.run(
-        ["node", "-e", script, *sources, domain], check=True, capture_output=True, text=True
+        ["node", "-e", script, *sources, domain, listen_token], check=True, capture_output=True, text=True
     ).stdout
 
 
-def script_rendered(domain: str) -> str:
-    """The user data create-droplet.sh sends, from its own sed command."""
+def script_rendered(domain: str, listen_token: str) -> str:
+    """The user data create-droplet.sh sends, from its own commands."""
     here = os.path.join(ROOT, "deploy", "relay")
+    with open(CREATE_DROPLET, encoding="utf-8") as file:
+        source = file.read()
+    start = source.index("  rendered=$(sed ")
+    end = source.index('> "$data"\n', start)
     shell = (
-        'compose=$(base64 < "$1/compose.yml" | tr -d \'\\n\')\n'
-        'caddyfile=$(base64 < "$1/Caddyfile" | tr -d \'\\n\')\n'
-        'sed -e "s|__COMPOSE_B64__|$compose|" -e "s|__CADDYFILE_B64__|$caddyfile|" '
-        '-e "s|__RELAY_DOMAIN__|$2|" "$1/cloud-init.yml"\n'
+        'here=$1 domain=$2 token=$3\n'
+        'compose=$(base64 < "$here/compose.yml" | tr -d \'\\n\')\n'
+        'caddyfile=$(base64 < "$here/Caddyfile" | tr -d \'\\n\')\n'
+        + source[start:end]
     )
     return subprocess.run(
-        ["bash", "-c", shell, "render", here, domain], check=True, capture_output=True, text=True
+        ["bash", "-c", shell, "render", here, domain, listen_token], check=True, capture_output=True, text=True
     ).stdout
 
 
@@ -206,8 +273,31 @@ def script_rendered(domain: str) -> str:
 class DeployPageTest(unittest.TestCase):
     def test_the_page_sends_what_create_droplet_sends(self) -> None:
         for domain in ("", "nyc3.relay.example.org"):
-            with self.subTest(domain=domain):
-                self.assertEqual(page_rendered(domain), script_rendered(domain))
+            for listen_token in ("open", LISTEN_TOKEN):
+                with self.subTest(domain=domain, listen_token=listen_token):
+                    page = page_rendered(domain, listen_token)
+                    self.assertEqual(page, script_rendered(domain, listen_token))
+                    self.assertNotIn("__RELAY_LISTEN_TOKEN__", page)
+
+    def test_the_page_makes_tokens_and_links_as_the_script_does(self) -> None:
+        address = "https://203-0-113-7.sslip.io"
+        script = (
+            f"const page = require({json.dumps(PAGE_SCRIPT)});"
+            "console.log(page.listenToken());"
+            "console.log(page.listenToken());"
+            f"console.log(page.addLink({json.dumps(address)}, {json.dumps(LISTEN_TOKEN)}));"
+        )
+        first, second, link = subprocess.run(
+            ["node", "-e", script], check=True, capture_output=True, text=True
+        ).stdout.splitlines()
+        self.assertRegex(first, TOKEN.pattern + "$")
+        self.assertNotEqual(first, second)
+        encoded = subprocess.run(
+            ["bash", "-c", script_function("encoded") + 'encoded "$1"', "encode", address],
+            check=True, capture_output=True, text=True,
+        ).stdout
+        self.assertEqual(link, f"sheprd://relay?endpoint={encoded}&token={LISTEN_TOKEN}")
+        self.assertEqual(encoded, "https%3A%2F%2F203-0-113-7.sslip.io")
 
     def test_the_page_addresses_relays_as_the_script_prints_them(self) -> None:
         script = (

@@ -72,6 +72,7 @@ pub(super) struct WorkspaceRow<'a> {
     pub(super) label: &'a str,
     pub(super) tree: RowTree,
     pub(super) icon: RowIcon,
+    pub(super) repository: Option<&'a str>,
     pub(super) fold: Option<Fold>,
     /// Whether the row belongs to a worktree group, which lines its badges up
     /// with the group's fold control.

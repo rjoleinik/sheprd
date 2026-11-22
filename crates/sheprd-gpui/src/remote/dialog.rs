@@ -12,13 +12,13 @@ use super::{
 use crate::{SheprdWindow, config::Theme, fonts::StyledFont, i18n::fl, menu::Page};
 use gpui::{prelude::*, *};
 use sheprd_remote_control::control::Request;
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{sync::Arc, time::Duration};
 
 mod addresses;
+mod computer_fleet;
+mod fleet_line;
 mod hosts;
+mod link;
 mod share_github;
 
 /// What keeps this computer advertised for nearby pairing.
@@ -41,6 +41,13 @@ pub(crate) struct PairingDialog {
     pub(crate) pairing: Pairing,
     /// The other machines the phone may be allowed on too.
     pub(crate) hosts: Vec<hosts::Choice>,
+    /// Whether the phone, once approved, is admitted to this computer's
+    /// fleet when it asks to join (`fleet_line`). Ticked by default, as
+    /// the design has it; shown only while this computer is a member.
+    pub(crate) join_fleet: bool,
+    /// The fleet the phone joins once approved: set at Allow, only when
+    /// the switch was shown ticked, and spent once.
+    fleet_choice: Option<String>,
     addresses_scroll: ScrollHandle,
     other_addresses: crate::motion::Toggle,
     client: Option<Client>,
@@ -107,6 +114,8 @@ impl SheprdWindow {
         self.menu.remote_pairing = Some(PairingDialog {
             pairing: pairing.with_address(address),
             hosts: hosts::choices(Supervisor::hosts(cx)),
+            join_fleet: true,
+            fleet_choice: None,
             addresses_scroll: ScrollHandle::new(),
             other_addresses: crate::motion::Toggle::default(),
             client,
@@ -121,13 +130,14 @@ impl SheprdWindow {
     }
 
     /// Sends what the pairing asks for, one request at a time, until the
-    /// dialog closes.
+    /// dialog closes. The pairing is timed on the executor's clock, the one
+    /// its timer sleeps on, so tests that advance it reach the next poll.
     fn drive_pairing(client: Client, cx: &mut Context<Self>) -> Task<()> {
         cx.spawn(async move |this, cx| {
             loop {
                 let next = this.update(cx, |view, cx| {
                     let dialog = view.menu.remote_pairing.as_mut()?;
-                    let now = Instant::now();
+                    let now = cx.background_executor().now();
                     let ticket = dialog.pairing.next(now);
                     if ticket.is_none() && dialog.pairing.countdown(now).is_some() {
                         cx.notify();
@@ -151,7 +161,12 @@ impl SheprdWindow {
                         &result,
                         Ok(sheprd_remote_control::control::Response::Offer(_))
                     );
-                    dialog.pairing.receive(&ticket, result, Instant::now());
+                    let now = cx.background_executor().now();
+                    dialog.pairing.receive(&ticket, result, now);
+                    // Copy link: on the clipboard once the daemon made it.
+                    if let Some(link) = dialog.pairing.take_link(now) {
+                        cx.write_to_clipboard(ClipboardItem::new_string(link));
+                    }
                     if new_offer {
                         dialog.reveal_selected_address();
                     }
@@ -165,7 +180,10 @@ impl SheprdWindow {
                         Phase::Showing { .. } | Phase::Claimed { .. } => {}
                         _ => dialog._nearby = None,
                     }
-                    if matches!(dialog.pairing.phase(), Phase::Approved { .. }) {
+                    if let Phase::Approved { device, .. } = dialog.pairing.phase() {
+                        if let Some(fleet) = dialog.fleet_choice.take() {
+                            crate::fleet::Fleet::expect(cx, device.clone(), fleet);
+                        }
                         Supervisor::refresh(cx);
                     }
                     cx.notify();
@@ -193,6 +211,17 @@ impl SheprdWindow {
     fn answer_pairing(&mut self, allow: bool, cx: &mut Context<Self>) {
         if let Some(dialog) = &mut self.menu.remote_pairing {
             let ticked = hosts::ticked(&dialog.hosts);
+            // A phone, with the switch shown: this computer is a member.
+            let phone = matches!(dialog.pairing.phase(), Phase::Claimed { ssh: false, .. });
+            dialog.fleet_choice = (allow && phone && dialog.join_fleet)
+                .then(|| crate::fleet::Fleet::member_of(cx))
+                .flatten();
+            // A computer's claim: the fleet its line agreed to, shown
+            // ticked, and nothing for a phone, which joins on its own.
+            let agreed = computer_fleet::line(dialog.pairing.phase(), cx)
+                .filter(|_| allow && dialog.join_fleet)
+                .and_then(|line| line.agrees().map(str::to_owned));
+            dialog.pairing.set_fleet(agreed);
             dialog.pairing.answer_with_hosts(allow, ticked);
             cx.notify();
         }
@@ -312,7 +341,9 @@ impl SheprdWindow {
                 answer,
                 ..
             } => self.pairing_claim(device_name, code, app.as_deref(), *ssh, *answer, cx),
-            Phase::Approved { device_name, ssh } => self.pairing_message(
+            Phase::Approved {
+                device_name, ssh, ..
+            } => self.pairing_message(
                 &if *ssh {
                     fl!("remote-pair-approved-ssh", device = name(device_name))
                 } else {
@@ -399,7 +430,8 @@ impl SheprdWindow {
             Phase::Showing { offer, qr, .. } => Some((offer, qr.clone())),
             _ => None,
         });
-        let countdown = pairing.and_then(|pairing| pairing.countdown(Instant::now()));
+        let countdown =
+            pairing.and_then(|pairing| pairing.countdown(cx.background_executor().now()));
         let square = match &showing {
             Some((_, qr)) => qr_square(qr.clone()).into_any_element(),
             None => div()
@@ -438,6 +470,7 @@ impl SheprdWindow {
                         ))
                 }))
                 .children(self.nearby_hint(cx))
+                .children(self.pairing_link(cx))
                 .child(self.get_app_link()),
             None => div()
                 .text_color(rgb(theme.subtext()))
@@ -588,6 +621,11 @@ impl SheprdWindow {
             .children(
                 (!ssh)
                     .then(|| self.pairing_share_github(!waiting, cx))
+                    .flatten(),
+            )
+            .children((!ssh).then(|| self.pairing_fleet(!waiting, cx)).flatten())
+            .children(
+                ssh.then(|| self.pairing_computer_fleet(&device, !waiting, cx))
                     .flatten(),
             )
             .child(

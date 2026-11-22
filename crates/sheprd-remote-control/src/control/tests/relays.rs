@@ -12,6 +12,7 @@ fn a_relay_status_carries_its_label_beside_its_state() {
         state: RelayState::Failed {
             error: "unreachable".into(),
         },
+        token: false,
     };
     let wire = json!({
         "state": "failed", "error": "unreachable",
@@ -47,8 +48,20 @@ fn a_listening_relays_round_trip_sits_beside_its_label() {
             ..RelayLabel::default()
         },
         state: RelayState::Listening { rtt_ms: Some(42) },
+        token: false,
     };
     let wire = json!({"state": "listening", "rtt_ms": 42, "name": "fra3"});
+    assert_eq!(serde_json::to_value(&status).unwrap(), wire);
+    assert_eq!(serde_json::from_value::<RelayStatus>(wire).unwrap(), status);
+}
+
+#[test]
+fn a_relay_listened_on_with_a_token_says_so_and_never_shows_it() {
+    let status = RelayStatus {
+        token: true,
+        ..RelayState::Connecting.into()
+    };
+    let wire = json!({"state": "connecting", "token": true});
     assert_eq!(serde_json::to_value(&status).unwrap(), wire);
     assert_eq!(serde_json::from_value::<RelayStatus>(wire).unwrap(), status);
 }

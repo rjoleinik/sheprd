@@ -4,6 +4,7 @@
 mod agents;
 mod app;
 mod attach;
+mod briefs;
 mod claude;
 mod cli;
 mod codex;
@@ -13,18 +14,21 @@ mod files;
 mod harness;
 mod herdr;
 mod history;
+mod known;
 mod mirror;
 mod observe;
 mod pi;
 mod pictures;
 mod process;
 mod project;
+mod pull_requests;
 mod relay;
 mod restore;
 mod rpc;
 mod session;
 mod session_helpers;
 mod t3;
+mod traces;
 mod tui;
 
 use std::process::ExitCode;
@@ -75,6 +79,13 @@ fn main() -> ExitCode {
                 }
             }
         }
+        Ok(cli::Parsed::Traces(command)) => match traces::run(command) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => {
+                eprintln!("sheprd-acp: {error:#}");
+                ExitCode::FAILURE
+            }
+        },
         Ok(cli::Parsed::Mirror(options)) => match mirror::run(options) {
             Ok(()) => ExitCode::SUCCESS,
             Err(error) => {

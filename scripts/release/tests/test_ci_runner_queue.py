@@ -31,7 +31,8 @@ class Drafts(unittest.TestCase):
                 continue
             with self.subTest(workflow=path.name):
                 trigger = re.search(r"^  pull_request:\n((?:    .*\n)+)", text, re.M)[1]
-                self.assertIn("types: [opened, synchronize, reopened, ready_for_review]", trigger)
+                self.assertRegex(trigger, r"types: \[opened, synchronize, reopened, "
+                                          r"(?:labeled, )?ready_for_review\]")
                 for name, job in jobs(text).items():
                     # A job that waits on another is skipped with it.
                     if not needs(job):
@@ -68,11 +69,10 @@ class Queue(unittest.TestCase):
                          {name for name in JOBS if name not in ("checks-passed", "build")})
         self.assertTrue(set(PR_JOBS) <= set(JOBS))
 
-    def test_pull_requests_run_one_macos_leg_and_main_both(self):
+    def test_pull_requests_choose_legs_through_one_exclude(self):
+        # What each pull request runs is checked in test_ci_macos_runners.py.
         exclude = re.search(r"^        exclude: (.+)$", JOBS["checks"], re.M)[1]
-        self.assertEqual(exclude, "${{ github.event_name == 'pull_request' && "
-                         "fromJSON('[{\"runner\":\"macos-15\",\"features\":\"all\"}]') || "
-                         "fromJSON('[]') }}")
+        self.assertTrue(exclude.startswith("${{ fromJSON(github.event_name != 'pull_request' && '[]' || "))
 
 
 class WindowsNativeChanges(GitFixture):

@@ -1,5 +1,7 @@
 use super::agent_groups_text;
 
+mod traces;
+
 #[test]
 fn agent_groups_mark_the_one_shown() {
     let groups = ["demo".to_owned(), "other".to_owned()];

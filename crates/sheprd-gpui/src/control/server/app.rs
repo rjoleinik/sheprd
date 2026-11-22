@@ -17,6 +17,16 @@ use std::time::Duration;
 /// How long `app quit` waits, so its answer reaches the caller first.
 const QUIT_DELAY: Duration = Duration::from_millis(200);
 
+fn traces_reply(view: &SheprdWindow) -> Response {
+    Response::App {
+        reply: Reply::Traces {
+            peers: view.traces_sync_status(),
+            filter: view.trace_filter(),
+            hosts: view.trace_hosts().to_vec(),
+        },
+    }
+}
+
 impl SheprdWindow {
     /// The hosts this window shows, with their connection status.
     pub(crate) fn control_hosts(&self, cx: &App) -> Vec<HostInfo> {
@@ -279,6 +289,31 @@ pub(super) fn window(call: Call<WindowOp>, cx: &mut App) -> Response {
 
 pub(super) fn ui(call: Call<UiOp>, cx: &mut App) -> Response {
     in_window(&call.caller, cx, |view, window, cx| match call.op {
+        UiOp::Traces {} => traces_reply(view),
+        UiOp::TracesFilter { filter } => {
+            use crate::control::protocol::app::TraceFilter;
+            if !view.activity_bar_shown() {
+                return Response::error(ErrorCode::Unsupported, "The activity bar is off");
+            }
+            let known = match &filter {
+                TraceFilter::All => true,
+                TraceFilter::Host { id } => view.trace_hosts().iter().any(|host| host.id == *id),
+                TraceFilter::Tag { tag } => view
+                    .trace_hosts()
+                    .iter()
+                    .flat_map(|host| &host.tags.tags)
+                    .any(|own| sheprd_client::device_tags::same(own, tag)),
+            };
+            if !known {
+                return Response::error(
+                    ErrorCode::NotFound,
+                    "No indexed host or label matches the trace filter",
+                );
+            }
+            view.show_activity_panel(crate::sidebar::ActivityPanel::Traces, window, cx);
+            view.set_trace_filter(filter, cx);
+            traces_reply(view)
+        }
         UiOp::Sidebar { switch } => {
             let visible = switch.apply(view.sidebar_visible);
             if visible != view.sidebar_visible {

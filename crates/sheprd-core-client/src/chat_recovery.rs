@@ -69,8 +69,10 @@ pub struct Session {
     pub session: String,
 }
 
+/// herdr-core accepts doc names of at most 32 characters, so the record is
+/// keyed by the endpoint's first 20 digits; 76 random bits keep chats apart.
 fn document(endpoint: &EndpointId) -> String {
-    format!("sheprd-chat-recovery-{endpoint}")
+    format!("sheprd-chat-{}", &endpoint.as_str()[..20])
 }
 
 fn read(core: &Core, endpoint: &EndpointId) -> Result<(Option<Record>, u64)> {

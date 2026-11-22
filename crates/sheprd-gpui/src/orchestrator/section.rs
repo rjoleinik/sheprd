@@ -132,7 +132,7 @@ impl SheprdWindow {
         cx.notify();
     }
 
-    fn section_view(&self) -> Option<Entity<OrchestratorView>> {
+    pub(crate) fn section_view(&self) -> Option<Entity<OrchestratorView>> {
         self.orchestrator_view(self.activity.section_view?).cloned()
     }
 
@@ -199,6 +199,7 @@ pub(crate) fn list_of(section: ActivityPanel) -> Option<List> {
         | ActivityPanel::Automations
         | ActivityPanel::Ports
         | ActivityPanel::Workspaces
-        | ActivityPanel::Usage => None,
+        | ActivityPanel::Usage
+        | ActivityPanel::Traces => None,
     }
 }

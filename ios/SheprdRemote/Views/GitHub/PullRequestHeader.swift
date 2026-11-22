@@ -57,6 +57,7 @@ struct PullRequestHeader: View {
                         target: workspace.flatMap { PullRequestTarget(workspace: $0, number: summary.number) },
                         summary: summary
                     )
+                    .makesRoomForConnectionToast()
                 } label: {
                     Text("Open pull request")
                 }

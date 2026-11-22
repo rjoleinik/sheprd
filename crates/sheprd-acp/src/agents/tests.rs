@@ -47,3 +47,11 @@ fn a_missing_agent_is_named_by_its_last_candidate() {
     assert_eq!(program, "opencode");
     assert_eq!(args, ["acp"]);
 }
+
+#[test]
+fn kimi_uses_its_own_acp_server() {
+    assert_eq!(
+        launch(Agent::Kimi, None, false),
+        Launch::Acp("kimi".into(), vec!["acp".into()])
+    );
+}

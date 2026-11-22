@@ -7,69 +7,9 @@
 //! answers with the set that stands: the latest edit wins, whole, because
 //! tags are low stakes and a merge could never remove one.
 
+#[cfg(test)]
 use super::edited::Edited;
-use serde::{Deserialize, Serialize};
-
-/// The most tags one computer keeps.
-pub const MAX_TAGS: usize = 8;
-/// The longest tag, in characters.
-pub const MAX_TAG_CHARS: usize = 24;
-
-/// A computer's tags and when they were last edited.
-#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-pub struct ComputerTags {
-    pub tags: Vec<String>,
-    /// Milliseconds since the Unix epoch; 0 for tags never edited.
-    pub updated_ms: u64,
-}
-
-impl ComputerTags {
-    /// `tags` within bounds: single spaces, no blanks, and no repeats, as two
-    /// tags differing only in case are one tag, spelled as first written.
-    pub fn new<T: AsRef<str>>(tags: impl IntoIterator<Item = T>, updated_ms: u64) -> Self {
-        let mut kept: Vec<String> = Vec::new();
-        for tag in tags {
-            let Some(tag) = normalized(tag.as_ref()) else {
-                continue;
-            };
-            if kept.len() < MAX_TAGS && !kept.iter().any(|other| same(other, &tag)) {
-                kept.push(tag);
-            }
-        }
-        Self {
-            tags: kept,
-            updated_ms,
-        }
-    }
-}
-
-impl Edited for ComputerTags {
-    fn updated_ms(&self) -> u64 {
-        self.updated_ms
-    }
-
-    fn bounded(self, updated_ms: u64) -> Self {
-        Self::new(self.tags, updated_ms)
-    }
-}
-
-/// `text` as a tag: single spaces, at most [`MAX_TAG_CHARS`] characters, or
-/// `None` when nothing is left.
-pub fn normalized(text: &str) -> Option<String> {
-    let words = text
-        .split_whitespace()
-        .filter(|word| !word.chars().any(char::is_control))
-        .collect::<Vec<_>>()
-        .join(" ");
-    let tag: String = words.chars().take(MAX_TAG_CHARS).collect();
-    let tag = tag.trim_end();
-    (!tag.is_empty()).then(|| tag.to_owned())
-}
-
-/// Whether two tags are the same tag.
-pub fn same(one: &str, other: &str) -> bool {
-    one.to_lowercase() == other.to_lowercase()
-}
+pub use sheprd_client::device_tags::{ComputerTags, MAX_TAG_CHARS, MAX_TAGS, normalized, same};
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]

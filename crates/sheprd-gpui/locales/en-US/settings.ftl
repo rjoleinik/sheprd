@@ -82,6 +82,7 @@ settings-section-notifications = Notifications
 settings-section-integrations = Integrations
 settings-section-plugins = Plugins
 settings-section-cloud-devices = Cloud devices
+settings-section-machines = Virtual Macs
 settings-section-remote-control = Remote control
 settings-section-configuration = Configuration
 settings-lead-theme = Hover a theme to try it in the app; click to keep it.
@@ -94,7 +95,8 @@ settings-lead-code = Review code and diffs beside your terminals through a Visua
 settings-lead-integrations = Agents Herdr can launch and track.
 settings-lead-plugins = Show what your plugins report in the sidebar.
 settings-lead-cloud-devices = Create machines from your cloud accounts and use them as devices.
-settings-lead-remote-control = Use your chats from a phone, over HTTPS on your network or through Tailscale.
+settings-lead-machines = Macs that run inside tabs. Each keeps running with its tab closed until you suspend it, and quitting saves it.
+settings-lead-remote-control = Lets your phone use this computer: chats, terminals, and notifications, over your network, Tailscale, or a relay. Fleet runs on it.
 settings-lead-configuration = Files behind these settings. Saved edits reload automatically.
 
 ## Rows, in catalog order: each title, then its description.
@@ -222,6 +224,8 @@ settings-chat-width = Chat width
 settings-chat-width-description = Maximum reading width in logical pixels. Narrow windows fit automatically.
 settings-chat-launcher = Chat launcher
 settings-chat-launcher-description = Where tab strips offer a one-click chat with each installed agent. "+" keeps opening a terminal tab in every placement.
+settings-chat-auto-convert = Open new agents as chats
+settings-chat-auto-convert-description = Move each Claude, Codex, Copilot, or OpenCode agent started in a terminal, by you or another tool, into a chat once it has been idle for a few seconds. Agents already running, those you type into, and chats moved back stay in their terminals.
 settings-chat-glide = Smooth chat scrolling
 settings-chat-glide-description = Scroll smoothly to a reply's new text as it streams in. Off, the chat jumps to it as each chunk lands.
 settings-chat-wrap-code = Wrap code

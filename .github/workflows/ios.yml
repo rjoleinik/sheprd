@@ -15,6 +15,11 @@ on:
       # The daemon's wire types, which write the Swift tests' fixtures.
       - 'crates/sheprd-remote-control/src/native.rs'
       - 'crates/sheprd-remote-control/src/native/**'
+      # The fleet log the app links, built from Rust.
+      - 'crates/sheprd-fleet-ffi/**'
+      - 'crates/sheprd-remote-control/src/control/fleet.rs'
+      - 'crates/sheprd-remote-control/src/control/fleet/**'
+      - 'Cargo.lock'
       - '.github/workflows/ios.yml'
   pull_request:
     # ready_for_review starts the run a draft skipped.
@@ -27,6 +32,11 @@ on:
       # The daemon's wire types, which write the Swift tests' fixtures.
       - 'crates/sheprd-remote-control/src/native.rs'
       - 'crates/sheprd-remote-control/src/native/**'
+      # The fleet log the app links, built from Rust.
+      - 'crates/sheprd-fleet-ffi/**'
+      - 'crates/sheprd-remote-control/src/control/fleet.rs'
+      - 'crates/sheprd-remote-control/src/control/fleet/**'
+      - 'Cargo.lock'
       - '.github/workflows/ios.yml'
   workflow_dispatch:
 
@@ -43,7 +53,9 @@ jobs:
     # Drafts run nothing until marked ready for review.
     if: github.event.pull_request.draft != true
     name: Swift tests and simulator build
-    runs-on: macos-26
+    # GitHub's Xcode 27 image (macOS 27, arm64): macos-26 tops out at the
+    # iOS 26 SDK, which App Store Connect stops accepting in April 2027.
+    runs-on: xcode-27
     timeout-minutes: 30
     permissions:
       contents: read
@@ -51,10 +63,22 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Show the Xcode in use
-        run: xcodebuild -version
+      - name: Require the iOS 27 SDK
+        # App Store Connect refuses builds made with an older SDK from April
+        # 2027 (ITMS-90725). Fail here instead of uploading one it warns about.
+        run: |
+          xcodebuild -version
+          sdk=$(xcrun --sdk iphoneos --show-sdk-version)
+          echo "iOS SDK $sdk"
+          [ "${sdk%%.*}" -ge 27 ] || { echo "::error::iOS SDK $sdk is older than 27"; exit 1; }
       - name: Install XcodeGen
         run: brew install xcodegen
+      - name: Build the fleet log library from Rust
+        # The phone replays its own copy of the fleet log with the same Rust
+        # code as every computer (ios/tools/build-fleet-ffi.sh).
+        run: |
+          command -v rustup >/dev/null || { curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none; echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"; export PATH="$HOME/.cargo/bin:$PATH"; }
+          sh ios/tools/build-fleet-ffi.sh
       - name: Swift package tests (fixtures shared with the daemon's Rust tests)
         run: cd ios/SheprdRemoteCore && swift test
       - name: Unsigned simulator build of the app and its extensions
@@ -75,7 +99,7 @@ jobs:
       (github.repository == 'sheprd-labs/sheprd' || github.repository == 'penso/herdr-gpui') &&
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    runs-on: macos-26
+    runs-on: xcode-27
     # The archive, then up to 30 minutes for App Store Connect to take the notes.
     timeout-minutes: 75
     environment: testflight
@@ -87,8 +111,20 @@ jobs:
           # The notes list the commits since the last build's.
           fetch-depth: 0
           persist-credentials: false
+      - name: Require the iOS 27 SDK
+        # App Store Connect refuses builds made with an older SDK from April
+        # 2027 (ITMS-90725). Fail here instead of uploading one it warns about.
+        run: |
+          xcodebuild -version
+          sdk=$(xcrun --sdk iphoneos --show-sdk-version)
+          echo "iOS SDK $sdk"
+          [ "${sdk%%.*}" -ge 27 ] || { echo "::error::iOS SDK $sdk is older than 27"; exit 1; }
       - name: Install XcodeGen
         run: brew install xcodegen
+      - name: Build the fleet log library from Rust
+        run: |
+          command -v rustup >/dev/null || { curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none; echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"; export PATH="$HOME/.cargo/bin:$PATH"; }
+          sh ios/tools/build-fleet-ffi.sh
       - name: Archive and upload
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}

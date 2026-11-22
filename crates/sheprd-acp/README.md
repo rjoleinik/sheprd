@@ -5,7 +5,7 @@ in a terminal pane, draws the conversation there, and lets Sheprd attach to it
 and show it as a native chat.
 
 ```sh
-sheprd-acp claude             # or codex, copilot, gemini, opencode
+sheprd-acp claude             # or codex, copilot, gemini, kimi, opencode
 sheprd-acp -- goose acp       # any ACP agent command
 sheprd-acp --load ID codex    # continue one of the agent's sessions
 sheprd-acp --resume ID codex  # the same, but never start a new session instead
@@ -114,6 +114,12 @@ it exits if the original process ends or its identity changes. It starts no
 agent and writes no Herdr lifecycle metadata. The GUI retains the original
 terminal editor and approval interface directly below the rich conversation.
 No separate conversation, prompt injection or terminal/view round trip is needed.
+
+The remote control daemon runs the same observer for the iPhone app, on Linux
+and macOS, when a phone opens a terminal Claude agent's conversation. On macOS
+`START_TICKS` is the process's birth in microseconds since the epoch
+(`sheprd_client::herdr::processes::local_identity`), and the config directory
+is always the default, as macOS shows no other process's environment.
 
 The manual, read-only historical mirror remains available separately:
 
@@ -254,6 +260,7 @@ it; terminals that do not ignore it.
 | `codex` | `codex app-server` (see below); with `--acp`, `codex-acp`, else `npx -y @agentclientprotocol/codex-acp` |
 | `copilot` | `copilot --acp` |
 | `gemini` | `gemini --acp` |
+| `kimi` | `kimi acp` |
 | `opencode` | `opencode acp` |
 | `pi` | `pi --mode rpc` (see below); with `--acp`, `pi-acp`, else `npx -y pi-acp` |
 

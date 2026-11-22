@@ -13,10 +13,16 @@ ROOT = Path(__file__).resolve().parents[3]
 WORKFLOW = (ROOT / ".github/workflows/ci.yml").read_text()
 SECTIONS = re.split(r"^  ([a-z-]+):\n", WORKFLOW.split("\njobs:\n", 1)[1], flags=re.M)
 JOBS = dict(zip(SECTIONS[1::2], SECTIONS[2::2]))
-PR_JOBS = ("zizmor", "commits", "checks", "windows", "windows-native", "build-macos", "website",
-           "checks-passed")
+PR_JOBS = ("zizmor", "commits", "checks", "windows", "windows-native", "build-macos", "relay-agent",
+           "website", "checks-passed")
 # Jobs that never run on main: the release workflow builds those targets.
-PR_ONLY_JOBS = ("build-macos",)
+PR_ONLY_JOBS = ("build-macos", "relay-agent")
+
+
+# The macOS jobs' runners, kept here so a change to them is deliberate.
+MACOS_CHECKS = "${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('[\"OWNER\", \"MEMBER\", \"COLLABORATOR\"]'), github.event.pull_request.author_association))) && (matrix.runner == 'macos-15' && vars.CI_MACOS_RUNNER || matrix.runner == 'ubuntu-24.04-arm' && vars.CI_LINUX_ARM_RUNNER) || toJSON(matrix.runner)) }}"
+LINUX_GATE = "${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('[\"OWNER\", \"MEMBER\", \"COLLABORATOR\"]'), github.event.pull_request.author_association))) && vars.CI_LINUX_ARM_RUNNER || '\"ubuntu-24.04\"') }}"
+MACOS_RELEASE = "${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('[\"OWNER\", \"MEMBER\", \"COLLABORATOR\"]'), github.event.pull_request.author_association))) && vars.CI_MACOS_RUNNER || '\"macos-15\"') }}"
 
 
 def condition_matches(job, context, jobs=JOBS):
@@ -64,8 +70,11 @@ class CiPolicy(unittest.TestCase):
             "github.event.pull_request.head.repo.full_name": "larry0x/herdr-gpui",
             "github.event.pull_request.draft": False,
             "needs.commits.outputs.code": "true",
+            "needs.commits.outputs.full": "true",
             "needs.commits.outputs.macos_release": "true",
+            "needs.commits.outputs.relay_agent": "true",
             "needs.commits.outputs.website": "true",
+            "needs.commits.outputs.windows": "true",
             "needs.commits.outputs.windows_native": "true",
             "needs.commits.outputs.windows_package": "true",
             **overrides,
@@ -107,8 +116,38 @@ class CiPolicy(unittest.TestCase):
                     self.assertEqual(condition_matches(job, context),
                                      allowed and job not in PR_ONLY_JOBS)
 
+    def test_fast_pull_request_skips_only_other_platforms(self):
+        # Without every platform, a pull request still runs the Linux checks.
+        for full in ("false", ""):
+            context = self.context(**{"needs.commits.outputs.full": full,
+                                      "needs.commits.outputs.windows": full})
+            for job in PR_JOBS:
+                self.assertEqual(condition_matches(job, context),
+                                 job not in ("windows", "windows-native", "windows-package", "build-macos"),
+                                 (job, full))
+
+    def test_macos_code_runs_every_platform_but_windows(self):
+        # ci-scope.py leaves Windows out of a pull request whose platform code
+        # is macOS's alone; the merge queue and main still run it.
+        context = self.context(**{"needs.commits.outputs.windows": "false"})
+        for job in PR_JOBS:
+            self.assertEqual(condition_matches(job, context),
+                             job not in ("windows", "windows-native", "windows-package"), job)
+
+    def test_merge_queue_runs_every_platform_but_no_main_release_build(self):
+        # The queue's ref and actor are GitHub's; it checks what reaches main.
+        for actor in ("larry0x", "penso", "github-merge-queue[bot]"):
+            context = self.context(**{
+                "github.event_name": "merge_group",
+                "github.ref": "refs/heads/gh-readonly-queue/main/pr-456-0123456789abcdef",
+                "github.actor": actor, "github.triggering_actor": actor,
+            })
+            for job in JOBS:
+                with self.subTest(actor=actor, job=job):
+                    self.assertEqual(condition_matches(job, context), job != "build")
+
     def test_other_repositories_cannot_run_jobs(self):
-        for event in ("pull_request", "push", "workflow_dispatch"):
+        for event in ("pull_request", "merge_group", "push", "workflow_dispatch"):
             context = self.context(**{
                 "github.repository": "larry0x/herdr-gpui", "github.event_name": event,
                 "github.ref": "refs/heads/main", "github.actor": "penso",
@@ -149,7 +188,8 @@ class CiPolicy(unittest.TestCase):
                                  job not in ("checks", "windows"), (job, code))
         # The GUI tests and the macOS release builds follow their own inputs.
         for output, selected in (("windows_native", "windows-native"),
-                                 ("macos_release", "build-macos")):
+                                 ("macos_release", "build-macos"),
+                                 ("relay_agent", "relay-agent")):
             for value in ("false", ""):
                 context = self.context(**{f"needs.commits.outputs.{output}": value})
                 for job in PR_JOBS:
@@ -166,23 +206,38 @@ class CiPolicy(unittest.TestCase):
         script = "\n".join(line[10:] for line in script.splitlines() if line.startswith("          "))
 
         def gate(code, checks, windows, native, commits, package_inputs="false", package="skipped",
-                 event="push", macos=None, site_inputs="false", site="skipped",
-                 native_inputs=None, macos_inputs=None, zizmor="success"):
+                 event="push", macos=None, site_inputs="false", site="skipped", full="true",
+                 native_inputs=None, macos_inputs=None, zizmor="success", relay_inputs="false",
+                 relay="skipped", windows_scope=None):
+            if windows_scope is None:
+                windows_scope = full
             if native_inputs is None:
                 native_inputs = code if code in ("true", "false") else "false"
             if macos_inputs is None:
                 macos_inputs = native_inputs
             if macos is None:
-                macos = ("success" if code == macos_inputs == "true" and event == "pull_request"
-                         else "skipped")
+                before_merge = event in ("pull_request", "merge_group")
+                selected = code == macos_inputs == full == "true" and before_merge
+                macos = "success" if selected else "skipped"
             return subprocess.run(
                 ["bash", "-e", "-c", script], capture_output=True,
                 env={**os.environ, "CODE": code, "RESULT": checks, "WINDOWS": windows,
                      "NATIVE": native, "NATIVE_INPUTS": native_inputs, "COMMITS": commits,
+                     "FULL": full, "WINDOWS_SCOPE": windows_scope,
                      "PACKAGE_INPUTS": package_inputs, "PACKAGE": package,
                      "EVENT": event, "MACOS_RELEASE": macos, "MACOS_INPUTS": macos_inputs,
-                     "SITE_INPUTS": site_inputs, "SITE": site, "ZIZMOR": zizmor},
+                     "SITE_INPUTS": site_inputs, "SITE": site, "ZIZMOR": zizmor,
+                     "RELAY_AGENT_INPUTS": relay_inputs, "RELAY_AGENT": relay},
             ).returncode == 0
+
+        # A pull request needing every platform for macOS code leaves Windows
+        # out (scripts/ci-scope.py): skipped passes, and a Windows run that
+        # should not have happened, or a main run without Windows, fails.
+        self.assertTrue(gate("true", "success", "skipped", "skipped", "success", event="pull_request",
+                             windows_scope="false"))
+        self.assertFalse(gate("true", "success", "success", "success", "success", event="pull_request",
+                              windows_scope="false"))
+        self.assertFalse(gate("true", "success", "skipped", "skipped", "success", windows_scope="false"))
 
         for code, checks, windows, commits in itertools.product(
                 ("true", "false", ""), ("success", "failure", "cancelled", "skipped"),
@@ -218,15 +273,31 @@ class CiPolicy(unittest.TestCase):
                         or (inputs == "false" and package == "skipped"))
             self.assertEqual(gate("true", "success", "success", "success", "success", inputs, package),
                              expected, (inputs, package))
-        # The macOS release builds run, and must pass, on pull requests that
-        # change their inputs only; anywhere else they must have been skipped.
+        # A pull request may run Linux alone: the other platforms must then
+        # have been skipped. Main and the merge queue must run every one, and
+        # selection that failed to say fails the gate.
+        for event, full, windows in itertools.product(
+                ("pull_request", "merge_group", "push", "workflow_dispatch"), ("true", "false", ""),
+                ("success", "failure", "skipped")):
+            expected = (full == "true" and windows == "success") or (
+                event == "pull_request" and full == "false" and windows == "skipped")
+            self.assertEqual(gate("true", "success", windows, windows, "success", event=event, full=full),
+                             expected, (event, full, windows))
+        for event, full in itertools.product(("merge_group", "push"), ("false", "")):
+            self.assertFalse(gate("false", "skipped", "skipped", "skipped", "success",
+                                  event=event, full=full), (event, full))
+        # The macOS release builds run, and must pass, before merge with every
+        # platform when their inputs change only; anywhere else they must
+        # have been skipped.
         for code, inputs, event, macos in itertools.product(
-                ("true", "false"), ("true", "false"), ("pull_request", "push", "workflow_dispatch"),
+                ("true", "false"), ("true", "false"),
+                ("pull_request", "merge_group", "push", "workflow_dispatch"),
                 ("success", "failure", "cancelled", "skipped")):
             if code == "false" and inputs == "true":
                 continue  # Its inputs are code, so detection never reports this.
             platform = "success" if code == "true" else "skipped"
-            selected = code == inputs == "true" and event == "pull_request"
+            before_merge = event in ("pull_request", "merge_group")
+            selected = code == inputs == "true" and before_merge
             expected = macos == ("success" if selected else "skipped")
             self.assertEqual(gate(code, platform, platform, platform, "success", event=event,
                                   macos=macos, native_inputs=code, macos_inputs=inputs),
@@ -244,7 +315,7 @@ class CiPolicy(unittest.TestCase):
     def test_ci_has_no_privileged_trigger_or_credentials(self):
         triggers = WORKFLOW.split("\npermissions:", 1)[0]
         self.assertEqual(re.findall(r"^  (\w+):", triggers, re.M),
-                         ["push", "pull_request", "workflow_dispatch"])
+                         ["push", "pull_request", "merge_group", "workflow_dispatch"])
         self.assertIn("\npermissions: {}\n", WORKFLOW)
         for name, job in JOBS.items():
             with self.subTest(job=name):
@@ -257,15 +328,26 @@ class CiPolicy(unittest.TestCase):
                 if "Swatinem/rust-cache@" in job:
                     self.assertIn("save-if: ${{ github.ref == 'refs/heads/main' }}", job)
         # Keep runners a fixed hosted set; never accept a PR-controlled label.
+        # Members' macOS jobs may move to our own Macs through
+        # CI_MACOS_RUNNER, a repository variable only admins set; which runs
+        # do is checked in test_ci_macos_runners.py.
         self.assertEqual(re.findall(r"^    runs-on: (.+)$", WORKFLOW, re.M), [
-            "ubuntu-latest", "ubuntu-24.04", "${{ matrix.runner }}",
+            LINUX_GATE.replace("ubuntu-24.04", "ubuntu-latest"), LINUX_GATE, MACOS_CHECKS,
             "${{ matrix.runner }}", "${{ matrix.runner }}", "windows-2025",
-            "ubuntu-24.04", "ubuntu-24.04", "${{ matrix.runner }}", "macos-15",
+            LINUX_GATE, LINUX_GATE, "${{ matrix.runner }}", MACOS_CHECKS, MACOS_RELEASE,
         ])
+        for name in ("checks", "build-macos"):
+            with self.subTest(job=name):
+                # A self-hosted runner keeps target/ but nothing else, and
+                # restores no hosted cache over it.
+                self.assertIn("clean: ${{ runner.environment != 'self-hosted' }}", JOBS[name])
+                self.assertIn("if: runner.environment == 'self-hosted'\n"
+                              "        run: bash scripts/ci-clean-self-hosted.sh", JOBS[name])
         self.assertEqual(re.findall(r"^        runner: (.+)$", WORKFLOW, re.M), [
             "[macos-15, ubuntu-24.04, ubuntu-24.04-arm]",
             "[windows-2025, windows-11-arm]",
             "[windows-2025, windows-11-arm]",
+            "[ubuntu-24.04, ubuntu-24.04-arm, macos-15]",
         ])
         self.assertEqual(re.findall(r"^          - runner: (.+)$", WORKFLOW, re.M),
                          ["ubuntu-24.04", "ubuntu-24.04-arm"])

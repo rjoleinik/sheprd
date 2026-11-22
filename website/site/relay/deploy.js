@@ -22,12 +22,27 @@ function base64(text) {
   return btoa(binary);
 }
 
-// create-droplet.sh's sed substitution: the three placeholders, filled.
-function render(cloudInit, compose, caddyfile, domain) {
-  return cloudInit
+// create-droplet.sh's substitution: the placeholders, filled. Without a
+// listen token, its placeholder stays, and the relay is open.
+function render(cloudInit, compose, caddyfile, domain, listenToken) {
+  const text = cloudInit
     .split('__COMPOSE_B64__').join(base64(compose))
     .split('__CADDYFILE_B64__').join(base64(caddyfile))
     .split('__RELAY_DOMAIN__').join(domain);
+  return listenToken === undefined ? text : text.split('__RELAY_LISTEN_TOKEN__').join(listenToken);
+}
+
+// A relay's listen token, as create-droplet.sh makes one: 32 random bytes,
+// base64url without padding.
+function listenToken() {
+  let binary = '';
+  for (const byte of crypto.getRandomValues(new Uint8Array(32))) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+// The link that opens Sheprd's Settings with the relay and its token filled in.
+function addLink(address, token) {
+  return `sheprd://relay?endpoint=${encodeURIComponent(address)}&token=${encodeURIComponent(token)}`;
 }
 
 // The address Sheprd is given: the name the certificate is for.
@@ -41,7 +56,7 @@ function normalizedSuffix(value) {
   return suffix;
 }
 
-if (typeof module !== 'undefined') module.exports = { render, relayAddress, normalizedSuffix };
+if (typeof module !== 'undefined') module.exports = { render, listenToken, addLink, relayAddress, normalizedSuffix };
 
 if (typeof document !== 'undefined') {
   const $ = id => document.getElementById(id);
@@ -131,16 +146,28 @@ if (typeof document !== 'undefined') {
     const item = document.createElement('li');
     item.innerHTML = '<strong class="rd-region"></strong> <span class="rd-state"></span>' +
       '<div class="rd-address" hidden><code></code> <button type="button" class="rd-copy">Copy</button></div>' +
+      '<div class="rd-address rd-token" hidden>Listen token: <code></code> <button type="button" class="rd-copy">Copy</button>' +
+      ' <a class="rd-copy" hidden>Add to Sheprd</a></div>' +
       '<div class="rd-more"></div>';
     item.querySelector('.rd-region').textContent = region;
-    item.querySelector('.rd-copy').addEventListener('click', () =>
-      navigator.clipboard.writeText(item.querySelector('code').textContent));
+    for (const button of item.querySelectorAll('button.rd-copy')) {
+      button.addEventListener('click', () => navigator.clipboard.writeText(button.previousElementSibling.textContent));
+    }
     results.append(item);
+    const token = item.querySelector('.rd-token');
     return {
       state: text => { item.querySelector('.rd-state').textContent = text; },
       address: text => {
-        item.querySelector('code').textContent = text;
+        item.querySelector('.rd-address code').textContent = text;
         item.querySelector('.rd-address').hidden = false;
+      },
+      token: (text, link) => {
+        token.querySelector('code').textContent = text;
+        token.hidden = false;
+        if (link) {
+          token.querySelector('a').href = link;
+          token.querySelector('a').hidden = false;
+        }
       },
       more: (text, href) => {
         const more = item.querySelector('.rd-more');
@@ -159,7 +186,7 @@ if (typeof document !== 'undefined') {
 
   const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-  async function follow(token, droplet, row, region, suffix) {
+  async function follow(token, droplet, row, region, suffix, listen) {
     let ip = '';
     for (let tries = 0; tries < 60 && !ip; tries++) {
       await pause(5000);
@@ -173,7 +200,10 @@ if (typeof document !== 'undefined') {
     }
     const address = relayAddress(ip, region, suffix);
     row.address(address);
-    row.more(`Droplet ${droplet.name} at ${ip}. The dashboard's access token is in /root/sheprd-relay-login.txt on it.`,
+    if (listen) row.token(listen, addLink(address, listen));
+    row.more(listen
+      ? `Droplet ${droplet.name} at ${ip}. The listen token is shown only on this page and in /root/sheprd-relay-login.txt on the droplet, with the dashboard's access token.`
+      : `Droplet ${droplet.name} at ${ip}. The dashboard's access token is in /root/sheprd-relay-login.txt on it.`,
       `https://cloud.digitalocean.com/droplets/${droplet.id}`);
     if (suffix) {
       row.state(`point ${region}.${suffix} at ${ip}; the relay answers once the name resolves.`);
@@ -215,10 +245,12 @@ if (typeof document !== 'undefined') {
       const { cloudInit, compose, caddyfile } = await readSources();
       const keys = [...form.querySelectorAll('input[name="key"]:checked')].map(box => Number(box.value));
       const size = $('rd-size').value;
+      const open = $('rd-open').checked;
       const created = [];
       for (const region of regions) {
         say(`Creating the droplet in ${region}…`);
         const row = resultRow(region);
+        const listen = open ? null : listenToken();
         try {
           const body = await api(token, '/droplets', {
             method: 'POST',
@@ -230,11 +262,11 @@ if (typeof document !== 'undefined') {
               monitoring: true,
               tags: [TAG],
               ssh_keys: keys,
-              user_data: render(cloudInit, compose, caddyfile, suffix ? `${region}.${suffix}` : ''),
+              user_data: render(cloudInit, compose, caddyfile, suffix ? `${region}.${suffix}` : '', listen || 'open'),
             }),
           });
           row.state('created, starting…');
-          created.push(follow(token, body.droplet, row, region, suffix).catch(error => row.state(error.message)));
+          created.push(follow(token, body.droplet, row, region, suffix, listen).catch(error => row.state(error.message)));
         } catch (error) {
           row.state(error.message);
         }
@@ -242,7 +274,11 @@ if (typeof document !== 'undefined') {
       say(created.length ? 'Droplets created. Keep this tab open to see when each relay answers.' : 'No droplet was created.',
         created.length ? '' : 'error');
       await Promise.all(created);
-      if (created.length) say('Done. Add each address in Sheprd under Settings > Remote control > Relays, then delete the token if you made it for this.');
+      if (created.length) {
+        say(open
+          ? 'Done. Add each address in Sheprd under Settings > Remote control > Relays, then delete the token if you made it for this.'
+          : 'Done. Open each relay\'s Add to Sheprd link on your computer, or add its address under Settings > Remote control > Relays and paste its listen token when asked. Then delete the DigitalOcean token if you made it for this.');
+      }
     } catch (error) {
       say(error.message, 'error');
     } finally {
@@ -258,7 +294,10 @@ if (typeof document !== 'undefined') {
     const region = chosenRegions()[0] || 'REGION';
     try {
       const { cloudInit, compose, caddyfile } = await readSources();
-      $('rd-userdata').value = render(cloudInit, compose, caddyfile, suffix ? `${region}.${suffix}` : '');
+      const listen = $('rd-open').checked ? null : listenToken();
+      $('rd-userdata').value = render(cloudInit, compose, caddyfile, suffix ? `${region}.${suffix}` : '', listen || 'open');
+      $('rd-manual-token').hidden = !listen;
+      $('rd-manual-token').querySelector('code').textContent = listen || '';
       $('rd-manual').hidden = false;
     } catch (error) {
       say(error.message, 'error');
@@ -266,4 +305,6 @@ if (typeof document !== 'undefined') {
   });
 
   $('rd-copy-userdata').addEventListener('click', () => navigator.clipboard.writeText($('rd-userdata').value));
+  $('rd-copy-manual-token').addEventListener('click', () =>
+    navigator.clipboard.writeText($('rd-manual-token').querySelector('code').textContent));
 }

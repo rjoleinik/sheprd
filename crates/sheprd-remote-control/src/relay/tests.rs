@@ -24,13 +24,24 @@ use tokio::{
     net::TcpListener,
 };
 
+mod dial_keys;
 mod labels;
 mod nearest;
 mod shared;
+mod tokens;
 
 /// A relay serving QUIC and HTTP on loopback ports: its HTTP address, and
 /// its QUIC address and pin.
 pub(crate) async fn relay() -> (SocketAddr, SocketAddr, sheprd_relay::pin::Pin) {
+    relay_with(RelayOptions {
+        metrics: None,
+        ..RelayOptions::default()
+    })
+    .await
+}
+
+/// [`relay`], started with `options`.
+async fn relay_with(options: RelayOptions) -> (SocketAddr, SocketAddr, sheprd_relay::pin::Pin) {
     let (endpoint, info) =
         sheprd_relay::bind_quic("127.0.0.1:0".parse().unwrap(), None, None).unwrap();
     let quic = endpoint.local_addr().unwrap();
@@ -39,10 +50,6 @@ pub(crate) async fn relay() -> (SocketAddr, SocketAddr, sheprd_relay::pin::Pin) 
         .unwrap()
         .try_into()
         .unwrap();
-    let options = RelayOptions {
-        metrics: None,
-        ..RelayOptions::default()
-    };
     let (router, hub) = sheprd_relay::app(&options, Some(info)).unwrap();
     tokio::spawn(sheprd_relay::quic::run(endpoint, hub));
     let tcp = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -300,6 +307,7 @@ fn a_nearby_offer_names_the_relays_and_hands_its_token_to_them_once() {
         token: "t".into(),
         origins: &[],
         relay: Some(&info),
+        fleet: None,
     })
     .unwrap();
     assert_eq!(offer["relay"]["route"], info.route);
@@ -307,6 +315,7 @@ fn a_nearby_offer_names_the_relays_and_hands_its_token_to_them_once() {
         token: "t".into(),
         origins: &[],
         relay: None,
+        fleet: None,
     })
     .unwrap();
     assert!(without.get("relay").is_none());

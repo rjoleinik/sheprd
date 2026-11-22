@@ -2,15 +2,20 @@
 # DigitalOcean user data for one relay droplet (Ubuntu 24.04). It installs
 # Docker, opens only SSH, HTTP, HTTPS, and QUIC (UDP 443), writes the
 # compose files, makes a dashboard token, and starts the relay at
-# https://IP.sslip.io unless RELAY_DOMAIN is filled in below. create-droplet.sh fills the two
+# https://IP.sslip.io unless RELAY_DOMAIN is filled in below. create-droplet.sh fills the
 # placeholders; to use this by hand, replace them yourself.
+#
+# Only computers presenting the listen token filled in below may listen on
+# the relay; phones and other dialers never need it. Left unfilled, or set
+# to `open`, any computer may listen.
 #
 # start.sh runs only an image whose cosign signature comes from
 # relay-image.yml on sheprd-labs/sheprd's main branch, by the digest that
 # signature covers. Run it again to update; when the check fails, it
 # leaves the running relay alone and exits non-zero.
 #
-# The dashboard login is written to /root/sheprd-relay-login.txt (0600).
+# The dashboard login and the listen token are written to
+# /root/sheprd-relay-login.txt (0600).
 
 package_update: true
 packages: [docker.io, docker-compose-v2, ufw, curl, jq]
@@ -53,6 +58,22 @@ write_files:
         token=$(head -c 32 /dev/urandom | base64 | tr -d '/+=\n')
         printf 'RELAY_DASHBOARD_TOKEN=%s\n' "$token" > .env
         printf 'https://%s/dashboard\naccess token: %s\n' "$domain" "$token" > /root/sheprd-relay-login.txt
+        # Split like the domain's sentinel above. printf is a builtin, so
+        # the token reaches no process's arguments.
+        listen_token="__RELAY_LISTEN_TOKEN__"
+        if [ "$listen_token" = "__RELAY_""LISTEN_TOKEN__" ] || [ "$listen_token" = open ]; then
+          listen_token=""
+        fi
+        if [ -n "$listen_token" ]; then
+          printf 'RELAY_LISTEN_TOKEN=%s\n' "$listen_token" >> .env
+          printf 'listen token: %s\n' "$listen_token" >> /root/sheprd-relay-login.txt
+          # The link that adds this relay in Sheprd, when the token needs
+          # no escaping, as the generated ones do not.
+          case $listen_token in
+            *[!A-Za-z0-9._~-]*) ;;
+            *) printf 'add to Sheprd: sheprd://relay?endpoint=https%%3A%%2F%%2F%s&token=%s\n' "$domain" "$listen_token" >> /root/sheprd-relay-login.txt ;;
+          esac
+        fi
       fi
       # Ranges to ban by hand, one per line; the relay re-reads it. Made
       # readable by the relay's non-root user: the umask above keeps .env

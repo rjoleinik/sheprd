@@ -49,6 +49,7 @@ fn ids(view: &Entity<SheprdWindow>, cx: &mut VisualTestContext) -> Vec<String> {
 fn a_held_device_header_folds_the_list_and_drops_into_the_gap(cx: &mut gpui::TestAppContext) {
     let (view, cx) = cx.add_window_view(|window, cx| {
         let mut view = fixture_window(window, cx);
+        view.sidebar_split = Some(0.9);
         view.live.snapshot = Some(Arc::new(snapshot(3)));
         view.endpoints
             .extend(["a", "b", "c"].into_iter().map(remote));

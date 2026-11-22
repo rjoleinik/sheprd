@@ -85,6 +85,9 @@
       <p class="rd-label">SSH keys (optional)</p>
       <div id="rd-keys" class="rd-grid"></div>
       <p id="rd-keys-none" class="rd-hint">Paste a token to choose SSH keys. Without one, reach the droplets from DigitalOcean's web console.</p>
+      <p class="rd-label">Who may listen</p>
+      <label><input id="rd-open" type="checkbox"> Open relay (anyone may listen)</label>
+      <p class="rd-hint">Left unchecked, each relay gets its own listen token, made in this page, and only computers given it may listen. Phones never need it.</p>
     </fieldset>
 
     <p class="cta">
@@ -100,9 +103,13 @@
     <p>In DigitalOcean, choose <strong>Create &gt; Droplets</strong>, the region, <strong>Ubuntu 24.04</strong>, and a size. Under <strong>Advanced options</strong>, check <strong>Add initialization scripts</strong>, paste this, and create it. The relay answers a few minutes later at <code>https://IP-WITH-DASHES.sslip.io</code>, or at the domain you named.</p>
     <textarea id="rd-userdata" readonly rows="12" spellcheck="false" aria-label="User data"></textarea>
     <p><button id="rd-copy-userdata" class="btn btn-ghost" type="button">Copy the user data</button></p>
+    <div id="rd-manual-token" hidden>
+      <p class="rd-address">Its listen token: <code></code> <button id="rd-copy-manual-token" type="button" class="rd-copy">Copy</button></p>
+      <p class="rd-hint">The token is shown only here and in <code>/root/sheprd-relay-login.txt</code> on the droplet. Sheprd asks for it when you add the relay.</p>
+    </div>
   </section>
 
-  <p class="note tf-note">Then add each relay's address in Sheprd under <strong>Settings &gt; Remote control &gt; Relays</strong>. The page builds the droplets' user data from <a href="https://github.com/sheprd-labs/sheprd/tree/main/deploy/relay">deploy/relay</a> on <code>main</code>, as <code>create-droplet.sh</code> does; each droplet runs only an image whose signature it verified.</p>
+  <p class="note tf-note">Then add each relay in Sheprd: open its <strong>Add to Sheprd</strong> link, or add its address under <strong>Settings &gt; Remote control &gt; Relays</strong> and paste its listen token when asked. The page builds the droplets' user data from <a href="https://github.com/sheprd-labs/sheprd/tree/main/deploy/relay">deploy/relay</a> on <code>main</code>, as <code>create-droplet.sh</code> does; each droplet runs only an image whose signature it verified.</p>
 </main>
 </body>
 </html>

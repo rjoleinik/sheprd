@@ -5,6 +5,9 @@
 // i18n: migrated
 
 mod deploy;
+mod token;
+
+pub(in crate::settings_window) use token::TokenPrompt;
 
 use super::{Edit, SettingsWindow, ui};
 use crate::{
@@ -175,7 +178,9 @@ impl SettingsWindow {
         };
         self.remote.relay_invalid = false;
         input.update(cx, |input, cx| input.clear(cx));
-        self.save_with_relay(address, cx);
+        self.save_with_relay(address.clone(), cx);
+        // A private relay admits this computer only with its token.
+        self.check_relay_token(address, cx);
         cx.notify();
     }
 
@@ -236,8 +241,8 @@ impl SettingsWindow {
     ) {
         let mut relays = self.config.remote.relays.clone();
         if index < relays.len() {
-            relays.remove(index);
-            self.save_remote(Edit::Relays(relays), cx);
+            let removed = relays.remove(index);
+            self.remove_relay_and_token(relays, removed.endpoint, cx);
         }
     }
 
@@ -274,6 +279,7 @@ impl SettingsWindow {
         let theme = &self.theme;
         let relays = &self.config.remote.relays;
         let idle = !self.busy();
+        let (linked, token_row) = (self.linked_relay_row(cx), self.relay_token_row(cx));
         let rows = relays.iter().enumerate().map(|(index, relay)| {
             let address = crate::notifications::safe_text(&relay.endpoint, 200);
             let name = relay.label.name.as_deref().map_or_else(
@@ -296,9 +302,26 @@ impl SettingsWindow {
                     cx.listener(move |this, _, _, cx| this.remove_remote_relay(index, cx)),
                 )
             });
+            let endpoint = relay.endpoint.clone();
+            let token = ui::button(
+                theme,
+                format!("remote-relay-{index}-token"),
+                fl!("settings-remote-relay-token-button"),
+                idle,
+            )
+            .aria_label(fl!(
+                "settings-remote-relay-token-label",
+                relay = name.clone()
+            ))
+            .when(idle, |button| {
+                button.on_click(cx.listener(move |this, _, _, cx| {
+                    this.ask_relay_token(endpoint.clone(), cx);
+                }))
+            });
             ui::row(theme, format!("remote-relay-{index}"), name)
                 .dot(standing.color(theme))
                 .description(relay_line(relay, &standing))
+                .control(token)
                 .control(remove)
                 .into_any_element()
         });
@@ -315,19 +338,28 @@ impl SettingsWindow {
             .debug_selector(|| "remote-relay-address".into())
             .children(self.remote.relay.clone());
         let none = relays.is_empty();
-        let list = div().flex().flex_col().child(
-            ui::row(theme, "remote-relays", fl!("settings-remote-relays")).description(if none {
-                fl!("settings-remote-relays-none")
-            } else {
-                fl!("settings-remote-relays-note")
-            }),
-        );
+        let list = div()
+            .flex()
+            .flex_col()
+            .child(
+                ui::row(theme, "remote-relays", fl!("settings-remote-relays")).description(
+                    if none {
+                        fl!("settings-remote-relays-none")
+                    } else {
+                        fl!("settings-remote-relays-note")
+                    },
+                ),
+            )
+            .children(linked);
         // No relay yet: deploying one and adding one sit side by side.
         // Once one is listed, Add keeps its row and deploying moves under it.
         let list = if none {
-            list.child(self.relay_start(field, add))
+            // A relay just added may ask for its token before the list
+            // the daemon restarts with names it.
+            list.child(self.relay_start(field, add)).children(token_row)
         } else {
             list.children(rows)
+                .children(token_row)
                 .child(
                     ui::row(theme, "remote-relay-add", fl!("settings-remote-relay-add"))
                         .description(if self.remote.relay_invalid {

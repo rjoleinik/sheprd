@@ -292,7 +292,7 @@ fn a_connection_lost_inside_a_synchronized_update_shows_what_it_held() {
     let mut terminal = attached(&backend, &mut mock, Role::Active);
     let _ = terminal.next(Duration::from_millis(20)).unwrap();
     mock.send(5, Kind::Data, b"\x1b[?2026hheld");
-    drop(mock);
+    mock.close();
     let mut text = String::new();
     let start = std::time::Instant::now();
     while let Ok(updates) = terminal.next(Duration::from_millis(50)) {

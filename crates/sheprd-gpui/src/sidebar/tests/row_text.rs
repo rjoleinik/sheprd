@@ -174,6 +174,7 @@ fn cells_hand_their_state_and_data_to_the_layout() {
             label: "herdr",
             tree: RowTree::None,
             icon: RowIcon::None,
+            repository: None,
             fold: None,
             grouped: false,
             badge: None,

@@ -127,13 +127,19 @@ fn a_server_that_never_answers_a_ping_ends_the_stream() {
         pings
     });
     let stream = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
+    // Establish the WebSocket before starting the short idle-read deadline:
+    // a loaded Windows runner may not schedule the server within 50 ms.
+    stream
+        .set_read_timeout(Some(Duration::from_secs(10)))
+        .unwrap();
+    let url = url::Url::parse(&format!("ws://127.0.0.1:{port}/ws")).unwrap();
+    let connection = Connection::handshake(&url, &stream).unwrap();
     stream
         .set_read_timeout(Some(Duration::from_millis(50)))
         .unwrap();
-    let url = url::Url::parse(&format!("ws://127.0.0.1:{port}/ws")).unwrap();
-    let connection = Connection::handshake(&url, stream).unwrap();
     let (updates, changes) = bounded(4);
     follow(connection, Follower::new("2".to_owned()), &updates);
+    drop(stream);
     assert_eq!(
         changes.try_recv().unwrap(),
         Step::Ended("T3 Code stopped answering.".to_owned())

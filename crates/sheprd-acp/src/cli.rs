@@ -9,6 +9,7 @@ use std::{
 use crate::{agents::Agent, mirror::transcript::TranscriptAgent};
 
 mod session_helpers;
+mod traces;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum Error {
@@ -58,6 +59,8 @@ pub(crate) enum Parsed {
     /// List the agents installed here, one name per line.
     Agents,
     Session(crate::session_helpers::Command),
+    /// This host's index of agent sessions.
+    Traces(crate::traces::Command),
     Help,
     Version,
 }
@@ -70,6 +73,11 @@ pub(crate) struct Options {
     pub agent: AgentChoice,
     /// Listen for Sheprd and other clients.
     pub attach: bool,
+    /// A file holding the first prompt, another agent's brief, which this
+    /// program reads, removes, and sends once the session opens.
+    pub brief_file: Option<PathBuf>,
+    /// The agent that wrote the brief.
+    pub brief_from: Option<Agent>,
     /// Let a client switch to another installed agent until the first
     /// prompt reaches this one.
     pub choose: bool,
@@ -148,6 +156,21 @@ Usage:
   sheprd-acp observe codex|claude SESSION_ID PID START_TICKS [--pane ID]
                         Render the existing Linux agent over stdin/stdout.
                         Starts no agent; input stays in its original terminal.
+  sheprd-acp traces index [--json]
+                        Index this host's Claude Code, Codex, Pi and omp sessions,
+                        reading only what changed; secrets are redacted.
+  sheprd-acp traces watch [--json]
+                        Index, then keep indexing as agents write; print each
+                        changed session (JSON lines with --json) until stopped.
+  sheprd-acp traces list [--agent AGENT] [--limit N] [--json]
+                        The most recently updated indexed sessions.
+  sheprd-acp traces activity [--days N] [--json]
+                        Sessions and messages per day and agent.
+  sheprd-acp traces peers [--json]
+                        Last acknowledged replication progress for each host route.
+  sheprd-acp traces exchange
+                        One bounded replication request on stdin and reply on stdout;
+                        used by connected Sheprd hosts over authenticated transport.
   sheprd-acp mirror codex|claude FILE [--pane ID] [--endpoint ID]
                         Watch an existing JSONL transcript, read-only; starts
                         no agent and changes no Herdr pane metadata. Prints
@@ -165,6 +188,7 @@ Agents:
              (or npx @agentclientprotocol/codex-acp)
   copilot    copilot --acp
   gemini     gemini --acp
+  kimi       kimi acp
   opencode   opencode acp
   pi         pi --mode rpc, or with --acp pi-acp (or npx pi-acp)
 
@@ -179,6 +203,11 @@ Options:
   --resume ID    Continue session ID, and stop rather than start a new one
                  when the agent cannot (Sheprd restores chats with it)
   --name NAME    The name to show for a custom command
+  --brief-file FILE
+                 Send FILE's text as the first prompt, marked as another
+                 agent's brief, then remove FILE (sheprd chat new --prompt)
+  --brief-from AGENT
+                 The agent that wrote the brief
   --headless     Draw nothing; clients such as Sheprd drive the session
   --no-attach    Do not listen for Sheprd
   -h, --help     Show this help
@@ -236,6 +265,10 @@ pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Parsed, 
             args.next();
             return mirror(args);
         }
+        Some("traces") => {
+            args.next();
+            return traces::parse(args);
+        }
         Some("observe") => {
             args.next();
             return observe(args);
@@ -249,6 +282,8 @@ pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Parsed, 
             args: Vec::new(),
         },
         attach: true,
+        brief_file: None,
+        brief_from: None,
         choose: false,
         cwd: None,
         headless: false,
@@ -274,6 +309,17 @@ pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Parsed, 
                 options.require_load = true;
             }
             Some("--name") => options.name = Some(utf8(args.next(), "--name")?),
+            Some("--brief-file") => {
+                options.brief_file = Some(
+                    args.next()
+                        .ok_or(Error::MissingValue("--brief-file"))?
+                        .into(),
+                );
+            }
+            Some("--brief-from") => {
+                let name = utf8(args.next(), "--brief-from")?;
+                options.brief_from = Some(name.parse().map_err(|_| Error::UnknownAgent(name))?);
+            }
             Some("--") => {
                 let rest: Vec<OsString> = args.by_ref().collect();
                 options.agent = match agent {

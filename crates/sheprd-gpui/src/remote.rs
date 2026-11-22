@@ -12,11 +12,13 @@
 
 pub(crate) mod changes;
 mod dialog;
+pub(crate) mod host_push;
 mod indicator;
 pub(crate) use indicator::MENU_WIDTH;
 pub(crate) mod links;
 pub(crate) mod nearby;
 pub(crate) mod public_relays;
+pub(crate) mod relay_token;
 mod revoke;
 pub(crate) mod supervisor;
 

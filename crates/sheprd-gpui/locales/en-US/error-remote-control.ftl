@@ -4,6 +4,8 @@
 
 # $key is the certificate's config key: cert or key.
 error-remote-control-certificate-path = remote.certificate { $key } must be an absolute UTF-8 path
+# $pane is the pane id a favorite named, as sent.
+error-remote-control-favorite-pane = { $pane } is not a pane this computer can star
 # $host is an entry of remote.github_hosts as the user wrote it.
 error-remote-control-github-host = remote.github_hosts has { $host }, which is not a host name
 error-remote-control-idle-days = remote.device_idle_days must be between 0 (never) and 365
@@ -24,6 +26,8 @@ error-remote-control-program-missing = sheprd-remote-control was not found besid
 error-remote-control-relay = remote.relays has { $relay }, which is not a relay address
 # $relay is an entry of remote.relays; $reason is one of the
 # error-remote-control-relay-label-* messages below.
+# $max is a count of relays.
+error-remote-control-relay-tokens = Sheprd keeps listen tokens for at most { $max } relays
 error-remote-control-relay-label = remote.relays gives { $relay } a label it cannot use: { $reason }
 # $field is the label's key in the config file: name, description, or tag.
 error-remote-control-relay-label-blank = its { $field } is blank
@@ -46,7 +50,6 @@ error-remote-control-daemon = the remote control daemon refused: { $message }
 error-remote-control-no-answer = the remote control daemon closed the connection without answering
 
 # Enrolling a host's remote control daemon for a phone paired elsewhere.
-error-remote-control-enroll-apns-size = the APNs files sent are too large
 # $path is the daemon's config file on the host.
 error-remote-control-enroll-config = { $path } is not valid TOML
 error-remote-control-enroll-no-home = this host has no home directory
