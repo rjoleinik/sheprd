@@ -5,17 +5,21 @@ WEBVTT
 Sheprd runs your coding agents in native chats, beside your terminal.
 
 2
-00:00:05.743 --> 00:00:09.683
-Start one with the sparkle button, and ask for what you need.
+00:00:05.748 --> 00:00:10.088
+Start one with the agent button, right next to the new tab button.
 
 3
-00:00:10.083 --> 00:00:15.543
-The agent reads your code, makes the change and runs the tests, step by step.
+00:00:10.420 --> 00:00:16.760
+Switch agents any time: Claude, Codex, Gemini, or any other you have installed.
 
 4
-00:00:15.708 --> 00:00:21.728
-Every step is a card: what it read, the lines it changed, and what the tests said.
+00:00:16.766 --> 00:00:22.626
+Ask for what you need. The agent reads your code, makes the change and runs the tests.
 
 5
-00:00:21.730 --> 00:00:25.510
+00:00:22.636 --> 00:00:28.656
+Every step is a card: what it read, the lines it changed, and what the tests said.
+
+6
+00:00:28.665 --> 00:00:32.445
 And the answer arrives formatted, ready for you to review.

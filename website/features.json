@@ -6,8 +6,8 @@
       "category": "Agents",
       "kicker": "Native agent chats",
       "headline": "Talk to your agents.<br>See their work.",
-      "dek": "Your coding agents in a real chat, beside the terminal. Every file read, edit and test run is a card you can open.",
-      "description": "Run coding agents in native chats beside your terminal, and follow each read, edit and test run.",
+      "dek": "Claude, Codex, Gemini and more in a real chat beside the terminal. Switch agents any time; every read, edit and test run is a card you can open.",
+      "description": "Run Claude, Codex, Gemini and other coding agents in native chats beside your terminal, switch between them, and follow each step.",
       "chapters": [
         [
           1,
@@ -15,21 +15,25 @@
         ],
         [
           2,
+          "Switch agents"
+        ],
+        [
+          3,
           "Watch it work"
         ],
         [
-          4,
+          5,
           "Read the answer"
         ]
       ],
       "how": [
         [
           "Start a chat",
-          "Click the sparkle button in the tab bar for a new agent chat in the current workspace."
+          "Click the agent button next to the new tab button. It starts the agent you used last; hover it to pick another."
         ],
         [
-          "Ask for the change",
-          "Type what you need and press Return. The agent works in your checkout."
+          "Pick your agent",
+          "The agent menu under the message box switches the chat to Claude, Codex, Gemini, Copilot, OpenCode, Kimi or Pi, whichever you have installed."
         ],
         [
           "Follow every step",
@@ -40,7 +44,7 @@
         "/docs/chat/",
         "Agent chats"
       ],
-      "keywords": "ACP agent chat claude codex gemini assistant conversation prompt tool calls"
+      "keywords": "ACP agent chat claude codex gemini copilot opencode kimi pi switch agent assistant conversation prompt tool calls"
     },
     {
       "id": "review-changes",
