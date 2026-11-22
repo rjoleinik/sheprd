@@ -1,0 +1,91 @@
+{
+  "agent-chat": {
+    "windows": [
+      "moonframe",
+      "classic"
+    ],
+    "langs": [
+      "en",
+      "fr"
+    ],
+    "length": 27.0,
+    "starts": [
+      1.0,
+      5.75,
+      10.09,
+      15.71,
+      21.74
+    ]
+  },
+  "review-changes": {
+    "windows": [
+      "moonframe",
+      "classic"
+    ],
+    "langs": [
+      "en",
+      "fr"
+    ],
+    "length": 22.7,
+    "starts": [
+      1.0,
+      5.1,
+      9.92,
+      13.63,
+      17.33
+    ]
+  },
+  "command-palette": {
+    "windows": [
+      "moonframe",
+      "classic"
+    ],
+    "langs": [
+      "en",
+      "fr"
+    ],
+    "length": 29.1,
+    "starts": [
+      1.0,
+      5.58,
+      13.12,
+      18.99,
+      24.13
+    ]
+  },
+  "browser-tabs": {
+    "windows": [
+      "classic"
+    ],
+    "langs": [
+      "en",
+      "fr"
+    ],
+    "length": 26.9,
+    "starts": [
+      1.0,
+      5.02,
+      10.64,
+      16.02,
+      21.73
+    ]
+  },
+  "themes": {
+    "windows": [
+      "moonframe",
+      "classic"
+    ],
+    "langs": [
+      "en",
+      "fr"
+    ],
+    "length": 25.4,
+    "starts": [
+      1.0,
+      4.7,
+      10.32,
+      15.7,
+      20.36
+    ]
+  }
+}
