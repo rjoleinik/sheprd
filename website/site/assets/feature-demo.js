@@ -14,6 +14,17 @@ if (demo instanceof HTMLVideoElement) {
       demo.focus();
     }
   };
+  // Space plays and pauses, as on video sites, unless a control or field
+  // has the keyboard (the player itself already handles its own keys).
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== ' ' || event.metaKey || event.ctrlKey || event.altKey) return;
+    const target = event.target;
+    if (target instanceof HTMLElement
+        && (target === demo || target.isContentEditable
+            || ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON', 'A', 'SUMMARY'].includes(target.tagName))) return;
+    event.preventDefault();
+    if (demo.paused) play(); else demo.pause();
+  });
   document.querySelectorAll('[data-seek]').forEach((button) => {
     button.addEventListener('click', () => {
       demo.currentTime = Number(button.dataset.seek);

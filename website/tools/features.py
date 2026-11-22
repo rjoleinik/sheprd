@@ -133,7 +133,9 @@ def feature_page(feature, index, features, clip):
             ("lang", "Narration language", clip["langs"], lang, LANG_LABELS))
         if len(values) > 1)
     only = ("" if len(clip["windows"]) > 1 else
-            f"<span>{WINDOW_LABELS[window]} window</span>")
+            f'<span class="demo-only">{WINDOW_LABELS[window]} window only'
+            + (f" · {esc(feature['window_note'])}" if feature.get("window_note") else "")
+            + "</span>")
     chapters = "".join(
         f'<button type="button" data-seek="{clip["starts"][seg]:.2f}"><span>{n:02d}</span> '
         f'{esc(label)} <time>{clock(clip["starts"][seg])}</time></button>'
