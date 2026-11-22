@@ -1,0 +1,19 @@
+1
+00:00:01,000 --> 00:00:05,100
+Before you ship what an agent wrote, review it in Sheprd.
+
+2
+00:00:05,104 --> 00:00:09,924
+Open Review Changes from the palette: every file the work touched.
+
+3
+00:00:09,925 --> 00:00:13,385
+Each change sits beside the code it replaces.
+
+4
+00:00:13,629 --> 00:00:16,769
+Click a line number to leave a note for the agent.
+
+5
+00:00:17,334 --> 00:00:21,194
+Then mark the file viewed, and move on to the next.
