@@ -1,0 +1,19 @@
+1
+00:00:01,486 --> 00:00:05,346
+Sheprd change entièrement d'apparence en quelques secondes.
+
+2
+00:00:05,587 --> 00:00:11,287
+Ouvrez la palette de commandes avec Commande Majuscule P, puis cherchez « thèmes ».
+
+3
+00:00:11,450 --> 00:00:16,510
+Parcourez la liste : chaque thème s'applique en direct à toute la fenêtre.
+
+4
+00:00:16,915 --> 00:00:21,975
+Tapez pour filtrer, puis appuyez sur Entrée pour garder celui qui vous plaît.
+
+5
+00:00:22,138 --> 00:00:25,838
+C'est enregistré, et vous pouvez en changer à tout moment.
