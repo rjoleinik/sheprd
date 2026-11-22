@@ -13,6 +13,7 @@ use secrecy::ExposeSecret as _;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tower::ServiceExt;
 
+mod apns_delivery;
 mod apps;
 mod attention;
 mod changes;
@@ -113,6 +114,7 @@ pub(crate) fn state_lending(
         privacy: Privacy::Generic,
         pull_requests,
         push: None,
+        pushes: Default::default(),
         relay: None,
         reports: Mutex::new(report_limit()),
         seen: Mutex::new(seen),

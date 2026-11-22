@@ -380,6 +380,18 @@ pub(crate) fn run_owned(
         }
         None => crate::context::Prompts::default(),
     };
+    // The brief is read, and its file removed, before anything can fail to
+    // start; one that cannot be read says so in the chat.
+    let brief = options.brief_file.as_deref().and_then(|path| {
+        crate::briefs::take(path, options.brief_from)
+            .map_err(|error| {
+                notices.push((
+                    NoticeLevel::Warning,
+                    format!("The brief this chat was started with was not sent: {error}"),
+                ));
+            })
+            .ok()
+    });
     let settings_dir = crate::known::dir();
     let settings = carried_settings(harness, options.load.is_some(), &mut notices);
     let config = Config {
@@ -446,10 +458,16 @@ pub(crate) fn run_owned(
                     }
                 }
             });
+            if let Some(dir) = crate::briefs::dir() {
+                session.keep_briefs(dir);
+            }
             for (level, text) in notices {
                 session.notice(level, text);
             }
             session.start();
+            if let Some(brief) = brief {
+                session.brief(brief);
+            }
             let mut current = Some(first.process);
             let mut stopping = Vec::new();
             for input in receiver {

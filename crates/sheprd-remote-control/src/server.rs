@@ -112,8 +112,24 @@ pub async fn run(options: Options) -> Result<()> {
         Err(error) => tracing::info!(error = %error, "desktops cannot be let in over SSH"),
     }
     let apps = auth.apps();
-    let apns = crate::apns::Delivery::load(&options.state_dir, options.push_relay)?;
+    let apns = crate::apns::Delivery::new(options.push_relay)?;
     tracing::info!(delivery = apns.name(), "APNs pushes");
+    // A key an earlier release used, or copied here when linking a host, is
+    // left on disk for its owner and never read: only the push relay holds
+    // the key APNs takes for the app.
+    let unused_key = sheprd_apns::dir(&options.state_dir);
+    if unused_key.join("AuthKey.p8").exists() {
+        tracing::info!(
+            directory = %unused_key.display(),
+            "an APNs key here is no longer used: iPhone pushes go only through the push relay"
+        );
+    }
+    // Only a daemon whose pushes go through the push relay revokes handles there.
+    let push_relay_revocations = apns.push_relays().is_some().then(|| {
+        let (revocations, receiver) = crate::apns::push_relay_revoke::channel();
+        auth.set_push_relay_revocations(revocations);
+        receiver
+    });
     // Only origins this computer's own authority serves may be remembered.
     let seen = match &authority {
         Some(authority) => web::Origins::load(&options.state_dir, authority.fingerprint()),
@@ -171,6 +187,7 @@ pub async fn run(options: Options) -> Result<()> {
         privacy: options.privacy,
         pull_requests,
         push,
+        pushes: Default::default(),
         relay,
         reports: Mutex::new(web::report_limit()),
         seen: Mutex::new(seen),
@@ -196,6 +213,9 @@ pub async fn run(options: Options) -> Result<()> {
     // pictures.
     state.uploads.remove_leftovers();
     tokio::spawn(notifier::run(state.clone()));
+    if let Some(receiver) = push_relay_revocations {
+        tokio::spawn(revoke_push_relay_handles(state.clone(), receiver));
+    }
     tokio::spawn(crate::fleet::grants::follow(state.clone()));
     if let Some(fleet) = state.fleet.clone() {
         tokio::spawn(crate::fleet::removals::flood(fleet));
@@ -329,6 +349,25 @@ async fn expire(state: Arc<State>, idle: Option<Duration>) {
         let state = state.clone();
         let _ = tokio::task::spawn_blocking(move || sweep(&state, web::now_ms(), idle_ms)).await;
     }
+}
+
+/// Revokes unpaired devices' push relay handles through `state`'s push relays
+/// (`apns::push_relay_revoke`).
+async fn revoke_push_relay_handles(
+    state: Arc<State>,
+    receiver: tokio::sync::mpsc::Receiver<Vec<crate::apns::Handle>>,
+) {
+    let revoke = move |handle: crate::apns::Handle| {
+        let state = state.clone();
+        async move {
+            match state.apns.push_relays() {
+                Some(relays) => relays.revoke(&handle, web::now_ms()).await,
+                None => sheprd_apns::RelayOutcome::Unavailable,
+            }
+        }
+    };
+    crate::apns::push_relay_revoke::run(receiver, revoke, crate::apns::push_relay_revoke::log)
+        .await;
 }
 
 /// One tick of [`expire`]: drops old pictures, and devices away for

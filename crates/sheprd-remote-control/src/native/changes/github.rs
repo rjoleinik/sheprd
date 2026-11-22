@@ -371,6 +371,7 @@ pub(crate) async fn badges(state: crate::web::Shared) {
                 // worker assembles badges; retain the latest same-boot hints.
                 if current.boot_id == snapshot.boot_id {
                     snapshot.unopened.clone_from(&current.unopened);
+                    snapshot.uncommitted.clone_from(&current.uncommitted);
                 }
                 if current.as_ref() == &snapshot {
                     return false;

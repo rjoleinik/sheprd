@@ -337,6 +337,13 @@ unless they ask for another:
   `sheprd chat new --pane ID` with a pane of it. With no agent named it
   starts your agent with your chat's model, thinking, and permission mode.
   Do not run an agent's terminal command there instead.
+- **You hand it a task**: write the task to a file and start the chat with
+  it, `sheprd chat new [AGENT] --pane ID --prompt-file PATH` (or
+  `--prompt TEXT`, or `--prompt-file -` for standard input; at most 96 KB).
+  Sheprd sends it as the new chat's first prompt and shows it as your
+  brief, not the user's words. Do not paste a task into a chat with
+  `herdr agent prompt` or `herdr pane send-text`. A brief works only for
+  chats on this machine; on an SSH host the command exits 8.
 - **You run in a terminal**: start the same CLI you run as, with the same
   options, such as the model and permission flags you were started with
   (`ps -o args= -p $PPID` from your shell usually shows your command line),
@@ -381,6 +388,7 @@ what Sheprd shows or keeps.
 | Ask the user to stop (or pause) whatever holds a port you need | `sheprd ports stop 3000`; they confirm in the app |
 | See the processes under a pane, with CPU and memory | `sheprd processes` |
 | Start another agent like yourself, in a chat (see [Starting another agent](#starting-another-agent)) | `sheprd chat new --pane ID` from a chat, then `sheprd chat` for its status |
+| Hand another agent a task, shown as your brief in its new chat | `sheprd chat new [AGENT] --pane ID --prompt-file PATH` |
 | Start a chat with another agent in a new tab, shown as a native chat view | `sheprd chat new claude`, then `sheprd chat` for its status |
 | List a pull request you changed without `gh` in your chat's side rail (`gh pr` commands show there on their own) | `sheprd chat pr add https://github.com/OWNER/REPO/pull/N`; `sheprd chat pr` lists them |
 | Move a terminal agent into a native chat, keeping its conversation (an agent that is idle, in another pane) | `sheprd chat convert --pane ID`, then `sheprd chat` for its status |
@@ -398,7 +406,9 @@ what Sheprd shows or keeps.
 | Run a command inside a running virtual Mac (build, test, install an app) | `sheprd machine exec NAME --cwd ~/app -- xcodebuild test` |
 | Test a Mac app's UI in a virtual Mac: look at its screen, then click, type, or press keys | `sheprd machine screenshot NAME /tmp/s.png`, `sheprd machine click NAME X Y`, `sheprd machine type NAME TEXT`, `sheprd machine key NAME cmd+s` |
 | Check remote control and its daemon-host network interfaces, or pair a phone (Tailscale preferred; optionally choose an origin from status) | `sheprd remote status`, `sheprd remote pair [--address HTTPS_ORIGIN]` |
+| Check whether iPhone pushes go out (off, or through the push relay) and whether the last ones worked, here and on each linked host; read-only, the user turns the push relay off or on in Settings | `sheprd remote push-status --json` |
 | See the user's fleet of computers and phones and which hosts each reaches, or ask to remove one (the user confirms in Settings > Fleet) | `sheprd fleet status --json`, `sheprd fleet remove MEMBER` |
+| Add another computer running Sheprd on any network from its pairing link (piped on stdin, never an argument); the user clicks Pair | `sheprd remote add-link < FILE` |
 | Keep this computer's listen token for a private relay (piped on stdin, never an argument), or forget it | `sheprd remote relays token ENDPOINT < FILE`, `sheprd remote relays token ENDPOINT --clear` |
 | Keep the machine awake during a long job | `sheprd caffeine on --for 2h` |
 | Check whether the app runs, and which windows and hosts it has | `sheprd status` |

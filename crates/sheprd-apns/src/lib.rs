@@ -1,15 +1,17 @@
 //! The Apple Push Notification service, from the provider's side: the
 //! credentials, the ES256 provider token, the HTTP/2 sender, and the sealing
-//! that keeps a push's content from APNs. The daemon uses it with the user's
-//! own key and the push relay with the team's; what a push says stays with
-//! them.
+//! that keeps a push's content from APNs. The push relay sends with the
+//! app publisher's key, the only one there is; the daemon only seals pushes
+//! and hands them to the relay. What a push says stays with them.
 //!
-//! - [`Config`]: an APNs key (`DIR/apns/AuthKey.p8`) and `config.json`.
+//! - [`Config`]: the push relay's APNs key (`DIR/apns/AuthKey.p8`) and
+//!   `config.json`.
 //! - [`ProviderToken`]: the JWT APNs authenticates a provider by, refreshed
 //!   every fifty minutes.
-//! - [`Sender`]: the HTTP/2 request to `api.push.apple.com` or the sandbox.
-//! - [`RelayClient`]: the same through the push relay, for a daemon with no
-//!   key of its own. It takes only a [`SealedPush`].
+//! - [`Sender`]: the push relay's HTTP/2 request to `api.push.apple.com` or
+//!   the sandbox.
+//! - [`RelayClient`]: the daemon's request to the push relay. It takes only
+//!   a [`SealedPush`].
 //! - [`seal`]: sealing to a P-256 key, and opening with its private half.
 //! - [`DeviceToken`]: a checked push token.
 //!

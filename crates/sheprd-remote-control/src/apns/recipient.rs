@@ -1,6 +1,12 @@
-//! Where one of a device's pushes goes: an APNs token, for the user's own
-//! key, or a push relay handle (`docs/apns-relay-plan.md`), which the phone
-//! sealed to the relay so this daemon never sees the token inside.
+//! Where one of a device's pushes goes: a push relay handle
+//! (`docs/apns-relay-plan.md`), which the phone sealed to the relay so this
+//! daemon never sees the token inside, or a plain APNs token.
+//!
+//! Pushes go only through the push relay, which reaches handles alone. An
+//! app from before the relay still registers plain tokens: `POST /api/apns`
+//! takes them, and the device store keeps and loads them, so that app keeps
+//! registering without errors, but nothing is ever sent to a token, and the
+//! daemon never posts to Apple. That app gets no APNs push.
 //!
 //! The device store and `POST /api/apns` write a token as hex, as before,
 //! and a handle as an object naming the relay environment its credential is
@@ -32,7 +38,8 @@ const MIN_SEALED: usize = 124;
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub(crate) enum Recipient {
-    /// A raw APNs token, which only the user's own key can reach.
+    /// A raw APNs token from an app older than the push relay. Kept, so its
+    /// registration still loads, but never sent to.
     Token(DeviceToken),
     /// A handle the push relay opens.
     Handle(Handle),

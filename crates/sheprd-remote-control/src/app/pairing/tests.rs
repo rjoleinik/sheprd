@@ -2,6 +2,7 @@ use super::*;
 use crate::control::DeviceId;
 
 mod addresses;
+mod link;
 
 fn offer(id: &str) -> Offer {
     Offer {

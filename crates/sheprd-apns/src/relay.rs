@@ -1,5 +1,5 @@
-//! The daemon's side of the push relay: what sends a push when the user has
-//! no APNs key of their own. Nothing here needs setting up again after the
+//! The daemon's side of the push relay: how a computer sends an iPhone push,
+//! since it holds no APNs key. Nothing here needs setting up again after the
 //! relay restarts: a push carries its own handle, so the relay needs nothing
 //! from an earlier call. A connection that dropped is opened again, and one
 //! failure is tried again a moment later.

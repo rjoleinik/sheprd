@@ -87,6 +87,10 @@ pub(crate) struct Workspace {
     /// Commits on its branch that no pull request carries yet.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) unopened_commits: Option<u64>,
+    /// Its checkout has uncommitted changes, untracked files included;
+    /// false from older apps and servers.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub(crate) uncommitted: bool,
     /// The GitHub repository its checkout is on, for a phone to read
     /// GitHub itself; absent when its remote is not on a GitHub host, until
     /// first read, and from older servers.
@@ -406,6 +410,17 @@ fn unopened_commits(
         .map(|entry| entry.commits)
 }
 
+/// Whether Sheprd found uncommitted changes in `workspace`'s checkout in
+/// the same boot.
+fn uncommitted(pull_requests: &PullRequests, boot: &str, workspace: &hub::Workspace) -> bool {
+    pull_requests.boot_id == boot
+        && pull_requests.uncommitted.iter().any(|entry| {
+            entry.workspace_id == workspace.id
+                && entry.cwd == workspace.cwd
+                && Some(entry.branch.as_str()) == workspace.branch.as_deref()
+        })
+}
+
 impl From<Summary> for ChatSummary {
     fn from(summary: Summary) -> Self {
         Self {
@@ -558,6 +573,7 @@ impl Home {
                     }
                 }),
                 unopened_commits: unopened_commits(pull_requests, &layout.boot, workspace),
+                uncommitted: uncommitted(pull_requests, &layout.boot, workspace),
                 github: (!hub::in_wsl(&workspace.id))
                     .then(|| checkouts.get(&workspace.cwd))
                     .flatten()

@@ -21,6 +21,7 @@ mod en_xa;
 mod fleet;
 mod hosts;
 mod keyboard;
+mod link;
 mod networks;
 mod share_github;
 mod ssh;

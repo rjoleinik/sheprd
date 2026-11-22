@@ -496,8 +496,9 @@ pub(super) async fn start_chat(
     Ok(Json(json!({ "location": location })))
 }
 
-/// The iOS companion's Live Activity tokens or relay handles: the
+/// The iOS companion's Live Activity tokens or push relay handles: the
 /// push-to-start token when it changed, and every activity it still shows.
+/// The answer names the delivery, `push_relay`, the only one there is.
 pub(super) async fn register_apns(
     State(state): State<Shared>,
     Device(device): Device,
@@ -506,21 +507,27 @@ pub(super) async fn register_apns(
     if state.apns.is_off() {
         return Err(ApiError::NoPush);
     }
-    let update = crate::apns::Registration::parse(&body)
+    // An explicit `null` alert or push-to-start clears it: the phone sends
+    // that when its push relay goes off (`apns::Update`).
+    let update = crate::apns::Update::parse(&body)
         .map_err(|_| ApiError::Invalid("that registration is not valid"))?;
     with_auth(&state, move |auth| {
         let devices = auth.devices_mut();
         let mut stored = crate::apns::Registration::from_stored(
             devices.get(&device).and_then(|record| record.apns.as_ref()),
         );
-        stored.merge(update);
+        stored.apply(update);
         let value = stored
             .to_stored()
             .map_err(|_| ApiError::Invalid("that registration cannot be stored"))?;
         Ok(devices.set_apns(&device, value)?)
     })
     .await?;
-    Ok(Json(json!({ "ok": true })))
+    // Which way this computer's pushes leave it, for the phone's Settings;
+    // older phones ignore it.
+    Ok(Json(
+        json!({ "ok": true, "delivery": state.apns.wire_name() }),
+    ))
 }
 
 pub(super) async fn push_key(

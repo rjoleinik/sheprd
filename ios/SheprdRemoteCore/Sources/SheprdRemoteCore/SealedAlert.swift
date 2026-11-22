@@ -46,8 +46,11 @@ public struct SealedAlert: Codable, Hashable, Sendable {
     public var wizz: Bool
     /// A test push's id, which the extension records on arrival.
     public var test: String?
+    /// The computer's notification decision this is a copy of, the same in
+    /// every copy (`SeenAlerts`); older computers leave it out.
+    public var event: String?
 
-    enum CodingKeys: String, CodingKey { case kind, clear, computer, pane, title, body, badge, permission, wizz, test }
+    enum CodingKeys: String, CodingKey { case kind, clear, computer, pane, title, body, badge, permission, wizz, test, event }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -61,6 +64,7 @@ public struct SealedAlert: Codable, Hashable, Sendable {
         permission = try c.decodeIfPresent(Permission.self, forKey: .permission)
         wizz = try c.decodeIfPresent(Bool.self, forKey: .wizz) ?? false
         test = try c.decodeIfPresent(String.self, forKey: .test)
+        event = try c.decodeIfPresent(String.self, forKey: .event)
     }
 
     /// Opens an APNs payload's `sealed` field with the device's key.

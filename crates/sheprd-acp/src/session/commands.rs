@@ -50,7 +50,7 @@ impl<R: FnMut(Update)> Session<R> {
         self.ack(conn, id, rejected);
     }
 
-    fn prompt(
+    pub(super) fn prompt(
         &mut self,
         id: CommandId,
         text: String,

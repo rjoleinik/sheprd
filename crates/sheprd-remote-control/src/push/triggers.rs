@@ -2,7 +2,7 @@
 //! passes each change with the transcript it applies to, before applying it.
 
 use super::{
-    Message, Urgency,
+    EventId, Message, Urgency,
     directives::{without_directives, wizzes},
 };
 use serde::{Deserialize, Serialize};
@@ -71,6 +71,8 @@ pub(crate) struct Notification {
     /// Closes the chat's notification instead of showing one: its last
     /// question was answered, from whichever client.
     pub clear: bool,
+    /// This decision's id, the same in every copy of the push.
+    pub event: EventId,
     pub kind: Kind,
     pub pane: String,
     /// The permission request a question is, for the native app's answer
@@ -90,6 +92,7 @@ impl Notification {
         Self {
             body,
             clear: false,
+            event: EventId::new(),
             kind,
             pane: chat.pane.to_owned(),
             permission: None,
@@ -113,6 +116,7 @@ impl Notification {
         Self {
             body: String::new(),
             clear: true,
+            event: EventId::new(),
             kind: Kind::Question,
             pane: pane.to_owned(),
             permission: None,

@@ -210,7 +210,8 @@ enum Route<'a> {
 /// A start goes to the push-to-start token; an update or end to the
 /// activity's token, or waits for it on a device that can start
 /// activities, which may be showing one whose token is on its way. Only
-/// tokens `delivery` reaches count: a key reaches tokens, the relay handles.
+/// recipients `delivery` reaches count: the push relay's handles, never a
+/// plain token.
 fn route<'a>(live: &Live, registration: &'a Registration, delivery: &Delivery) -> Route<'a> {
     let reached = |token: Option<&'a Recipient>| token.filter(|token| delivery.reaches(token));
     let starts = reached(registration.push_to_start.as_ref()).is_some();
@@ -276,6 +277,9 @@ fn send(
     let state = state.clone();
     tokio::spawn(async move {
         let sent = state.apns.live(&token, key.as_ref(), &live, now_ms()).await;
+        state
+            .pushes
+            .record(crate::apns::Kind::LiveActivity, &sent, now_ms());
         let ended = matches!(live.event, Event::End { .. });
         let gone = sent == Sent::Gone;
         if !gone && !ended {

@@ -1,6 +1,7 @@
 #![allow(clippy::unwrap_used)]
 use super::*;
 
+mod brief;
 mod core_routing;
 mod favorite;
 mod like;
@@ -62,6 +63,7 @@ fn a_new_chat_names_a_known_agent_and_needs_herdr_acp(cx: &mut gpui::TestAppCont
             call(ChatOp::New {
                 agent: Some("cursor".into()),
                 pane: None,
+                prompt: None,
             }),
             cx,
         );
@@ -75,6 +77,7 @@ fn a_new_chat_names_a_known_agent_and_needs_herdr_acp(cx: &mut gpui::TestAppCont
             call(ChatOp::New {
                 agent: Some("claude".into()),
                 pane: None,
+                prompt: None,
             }),
             cx,
         );

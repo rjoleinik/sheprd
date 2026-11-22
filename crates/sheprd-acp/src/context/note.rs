@@ -179,7 +179,7 @@ pub(crate) fn hide(transcript: &mut Transcript) -> Told {
 
 /// FNV-1a: stable across Rust versions and machines, which a note read
 /// back from a log written by an older run needs.
-fn checksum(body: &str) -> u64 {
+pub(crate) fn checksum(body: &str) -> u64 {
     body.bytes().fold(0xcbf2_9ce4_8422_2325, |hash, byte| {
         (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3)
     })

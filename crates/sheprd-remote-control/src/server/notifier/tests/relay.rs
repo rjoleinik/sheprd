@@ -41,10 +41,10 @@ fn the_relay_alerts_devices_with_handles_only() {
     let dir = tempfile::tempdir().unwrap();
     let state = with_relay(dir.path());
     let (relayed, _) = crate::web::tests::signed_in(&state, 3);
-    let (own_key_app, _) = crate::web::tests::signed_in(&state, 4);
+    let (older_app, _) = crate::web::tests::signed_in(&state, 4);
     register(&state, &relayed, handle());
-    // A token only an APNs key reaches.
-    register(&state, &own_key_app, json!("9f".repeat(32)));
+    // A plain token, from an app older than the push relay.
+    register(&state, &older_app, json!("9f".repeat(32)));
     assert_eq!(alert_devices(&state), vec![relayed]);
 }
 

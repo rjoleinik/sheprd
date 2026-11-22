@@ -56,6 +56,24 @@ const PREFIX: &str = "core:";
 /// Where terminals nothing else lists go, new ones from a phone included.
 pub(super) const UNLISTED: &str = "core:terminals";
 
+/// What a core whose desktop document is `spaces` and whose terminals are
+/// `terminals` lists, for other modules' tests.
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+pub(crate) fn project_spaces(boot: &str, spaces: Value, terminals: &[Terminal]) -> Layout {
+    let mut poller = poller::Poller::default();
+    poller
+        .read_spaces(
+            boot,
+            Ok(sheprd_core_client::wire::Doc {
+                value: spaces,
+                version: 1,
+            }),
+        )
+        .expect("spaces read");
+    poller.project(boot, terminals, None, None)
+}
+
 /// The workspace a phone's new workspace in `cwd` is listed as until
 /// Sheprd keeps one for it: named for its folder, so it keeps its id
 /// whichever of its panes close, and safe in a path.

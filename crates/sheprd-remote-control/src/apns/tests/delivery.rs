@@ -1,9 +1,10 @@
 //! Which mode sends, what each reaches, and that a relay outage drops
-//! pushes at once instead of holding them.
+//! pushes at once instead of holding them. No mode posts to Apple.
 
 use super::*;
 use crate::apns::recipient::Handle;
 use p256::pkcs8::{EncodePrivateKey as _, LineEnding};
+use secrecy::ExposeSecret as _;
 use sheprd_apns::RelayHost;
 use std::time::Duration;
 
@@ -28,14 +29,12 @@ fn write_private(path: &std::path::Path, contents: &[u8]) {
 }
 
 #[test]
-fn the_relay_is_off_unless_allowed_and_an_own_key_wins() {
+fn only_the_push_relay_sends_and_an_apns_key_on_disk_is_ignored() {
+    assert!(Delivery::new(false).unwrap().is_off());
+    assert_eq!(Delivery::new(true).unwrap().name(), "push relay");
+    // A key an earlier release used, or a host was sent when linked, is
+    // left on disk and changes nothing.
     let dir = tempfile::tempdir().unwrap();
-    assert!(Delivery::load(dir.path(), false).unwrap().is_off());
-    assert!(matches!(
-        Delivery::load(dir.path(), true).unwrap(),
-        Delivery::Relay(_)
-    ));
-
     let apns = sheprd_apns::dir(dir.path());
     let pem = p256::SecretKey::from_slice(&[7; 32])
         .unwrap()
@@ -46,30 +45,42 @@ fn the_relay_is_off_unless_allowed_and_an_own_key_wins() {
         &apns.join("config.json"),
         br#"{"team_id":"ABCDE12345","key_id":"XYZ9876543","topic":"so.pen.herdr.remote"}"#,
     );
-    for relay in [false, true] {
-        let delivery = Delivery::load(dir.path(), relay).unwrap();
-        assert_eq!(delivery.name(), "own key", "relay {relay}");
-    }
+    assert!(Delivery::new(false).unwrap().is_off());
+    assert_eq!(Delivery::new(true).unwrap().name(), "push relay");
 }
 
 #[test]
-fn a_key_reaches_tokens_and_the_relay_handles() {
-    let own_key = Delivery::OwnKey(Box::new(sender_for_tests()));
-    assert!(own_key.reaches(&token(1)));
-    assert!(!own_key.reaches(&handle()));
+fn the_relay_reaches_handles_and_nothing_reaches_a_token() {
     assert!(relay().reaches(&handle()));
     assert!(!relay().reaches(&token(1)));
     assert!(!Delivery::Off.reaches(&token(1)));
     assert!(!Delivery::Off.reaches(&handle()));
 }
 
+#[tokio::test]
+async fn a_plain_token_is_never_sent_to() {
+    let key = p256::SecretKey::from_slice(&[5; 32]).unwrap().public_key();
+    let token = token(1);
+    let sealed =
+        crate::apns::alert::Sealed::test("t1".to_owned(), "computer".to_owned(), "MacBook", 0);
+    // Sending would take a DNS lookup and a TLS handshake at least; a
+    // recipient no mode reaches takes neither.
+    for delivery in [relay(), Delivery::Off] {
+        let sent = tokio::time::timeout(
+            Duration::from_millis(200),
+            delivery.alert(&token, &key, sealed.clone(), "test-t1", 0),
+        )
+        .await
+        .unwrap();
+        assert_eq!(sent, Sent::Unsent, "{}", delivery.name());
+    }
+    assert_eq!(token.expose_secret(), "01".repeat(32));
+}
+
 #[test]
 fn each_reply_says_what_came_of_the_push() {
     use sheprd_apns::RelayOutcome;
-    let refused = |status| Sent::Refused {
-        status,
-        reason: None,
-    };
+    let refused = |status| Sent::Refused { status };
     for (outcome, sent) in [
         (RelayOutcome::Delivered, Sent::Delivered),
         (RelayOutcome::Gone, Sent::Gone),
@@ -80,12 +91,6 @@ fn each_reply_says_what_came_of_the_push() {
     ] {
         assert_eq!(Sent::from(outcome), sent, "{outcome:?}");
     }
-    assert_eq!(Sent::from(Ok(Outcome::Gone)), Sent::Gone);
-    assert_eq!(Sent::from(Ok(Outcome::RateLimited)), Sent::Limited);
-    assert_eq!(
-        Sent::from(Err(sheprd_apns::Error::Timeout)),
-        Sent::Unreachable
-    );
 }
 
 #[test]

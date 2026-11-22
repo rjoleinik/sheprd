@@ -8,6 +8,12 @@
 //! answers as [`PairInput::Frame`]. The child does everything else: the code
 //! exchange, the claim through the other computer's relays, and saving the
 //! machine. Closing its input cancels.
+//!
+//! Run with `--link`, it adds a Sheprd from a pairing link instead
+//! (`super::pairing_link`): its first input is [`PairInput::Link`], no
+//! frame is carried, it answers [`PairOutput::Linked`] in place of
+//! [`PairOutput::Code`], and the code both screens show comes with
+//! [`PairOutput::Claimed`].
 
 use super::fleet::bluetooth::{ApprovedFleet, ClaimFleet, Hint};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
@@ -32,6 +38,9 @@ pub enum PairInput {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         fleet: Option<ClaimFleet>,
     },
+    /// The pairing link the person pasted, with `--link`: never on the
+    /// command line, where other users could read it.
+    Link { link: String },
 }
 
 /// From the child to Sheprd.
@@ -52,9 +61,23 @@ pub enum PairOutput {
         /// base64url: what a joiner's bundle is bound to (`Ask::Joining`).
         pairing: String,
     },
+    /// What a pairing link names, with `--link`: the child then waits for
+    /// [`PairInput::Claim`], as after [`PairOutput::Code`]; the code comes
+    /// once the other computer takes the claim.
+    Linked {
+        computer: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        fleet: Option<Hint>,
+        /// As [`PairOutput::Code`]'s.
+        pairing: String,
+    },
     /// The claim reached the other computer through a relay; its user
-    /// compares codes and answers there.
-    Claimed,
+    /// compares codes and answers there. `code` is the one it shows, which
+    /// a claim from a pairing link learns only now.
+    Claimed {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        code: Option<String>,
+    },
     /// Allowed: the machine is saved and reachable as `target`.
     Paired {
         target: String,

@@ -345,6 +345,9 @@ impl SheprdWindow {
         if self.menu.input.is_some() && action != WorkspaceAction::NewWorktree {
             body = body.child(self.render_dialog_input(cx));
         }
+        if action == WorkspaceAction::Rename {
+            body = body.children(self.render_naming(cx));
+        }
         if let Some(error) = &self.menu.error {
             body = body.child(
                 div()

@@ -114,7 +114,7 @@ async fn claim(
         ssh_key: &ssh_key,
         fleet: fleet.as_ref(),
     };
-    desktop::for_tests::claim(opened, &claimant, || {}).await
+    desktop::for_tests::claim(opened, &claimant, |_| {}).await
 }
 
 /// `node`'s own bundle for `fleet`, bound to the pairing `opened` holds.

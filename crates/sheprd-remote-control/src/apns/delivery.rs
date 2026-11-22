@@ -1,28 +1,28 @@
-//! How this daemon's APNs pushes leave it: not at all, with the user's own
-//! APNs key straight to Apple, or through the push relay for a computer
-//! with no key (`docs/apns-relay-plan.md`). The own key wins when both are
-//! set up, since it involves no one else.
+//! How this daemon's APNs pushes leave it: through the push relay
+//! (`docs/apns-relay-plan.md`), or not at all. The daemon holds no APNs key
+//! and never contacts Apple itself: only the push relay, run by the iOS
+//! app's publisher, holds the key APNs takes for the app.
 //!
-//! Each mode reaches only its own kind of [`Recipient`]: a key reaches
-//! tokens, the relay reaches handles. Through the relay every payload is
-//! sealed to the phone ([`SealedPush`]), Live Activities included.
+//! The relay reaches only handles. A plain token, which an older app still
+//! sends, is kept with the device but reaches nothing: that app gets no
+//! APNs push. The native app has no Web Push subscription of its own; only
+//! a browser app the user installed and subscribed gets Web Push. Every
+//! payload is sealed to the phone ([`SealedPush`]),
+//! Live Activities included.
 //!
 //! A relay outage must not stall the notifier: once a relay could not be
 //! reached, pushes through it are dropped at once for [`OUTAGE_MS`], so
 //! alerts fall back to Web Push and activity updates are not queued.
 
 use super::{
-    Live, Outcome, Recipient, Result, Sender,
+    Live, Recipient, Result,
     alert::{self, Sealed},
     recipient::Handle,
     seal,
 };
 use p256::PublicKey;
 use sheprd_apns::{RelayClient, RelayHost, RelayOutcome, SealedPush};
-use std::{
-    path::Path,
-    sync::atomic::{AtomicU64, Ordering},
-};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// How long pushes through the relay are dropped after it could not be
 /// reached, each try having already waited through its retries.
@@ -32,44 +32,27 @@ pub(crate) const OUTAGE_MS: u64 = 60 * 1000;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Sent {
     Delivered,
-    /// The token or handle will never work again: forget it.
+    /// The handle will never work again: forget it.
     Gone,
     /// Too many pushes for this phone for now.
     Limited,
-    /// Refused, with APNs's status and reason. The relay gives no reason,
-    /// and its status stands for one: 400 for a push it could not read, 403
-    /// for a handle it no longer takes, which only the phone's next
-    /// registration replaces.
+    /// Refused. The relay gives no reason, and its status stands for one:
+    /// 400 for a push it could not read, 403 for a handle it no longer
+    /// takes, which only the phone's next registration replaces.
     Refused {
         status: u16,
-        reason: Option<String>,
     },
-    /// APNs or the relay could not be reached, or the relay is out and the
-    /// push was dropped.
+    /// The relay could not be reached, or it is out and the push was
+    /// dropped.
     Unreachable,
-    /// Nothing went out: the push could not be built or sealed, or this
-    /// mode cannot reach the recipient.
+    /// Nothing went out: the push could not be built or sealed, or the
+    /// recipient is a plain token, which the relay cannot reach.
     Unsent,
-}
-
-impl From<sheprd_apns::Result<Outcome>> for Sent {
-    fn from(outcome: sheprd_apns::Result<Outcome>) -> Self {
-        match outcome {
-            Ok(Outcome::Delivered) => Self::Delivered,
-            Ok(Outcome::Gone) => Self::Gone,
-            Ok(Outcome::RateLimited) => Self::Limited,
-            Ok(Outcome::Rejected { reason, status }) => Self::Refused { status, reason },
-            Err(_) => Self::Unreachable,
-        }
-    }
 }
 
 impl From<RelayOutcome> for Sent {
     fn from(outcome: RelayOutcome) -> Self {
-        let refused = |status| Self::Refused {
-            status,
-            reason: None,
-        };
+        let refused = |status| Self::Refused { status };
         match outcome {
             RelayOutcome::Delivered => Self::Delivered,
             RelayOutcome::Gone => Self::Gone,
@@ -82,23 +65,28 @@ impl From<RelayOutcome> for Sent {
 }
 
 pub(crate) enum Delivery {
-    /// No key and no relay: chat changes send no APNs push.
+    /// The push relay is off: chat changes send no APNs push.
     Off,
-    OwnKey(Box<Sender>),
     Relay(Box<Relays>),
 }
 
 impl Delivery {
-    /// The user's own key in `state_dir` when there is one, else the relay
-    /// when `push_relay` allows it. Blocking file I/O.
-    pub(crate) fn load(state_dir: &Path, push_relay: bool) -> Result<Self> {
-        if let Some(sender) = Sender::load(state_dir)? {
-            return Ok(Self::OwnKey(Box::new(sender)));
+    /// The push relay when `push_relay` allows it, else nothing. Reads no
+    /// file: an APNs key left in the state directory is not used.
+    pub(crate) fn new(push_relay: bool) -> Result<Self> {
+        Ok(if push_relay {
+            Self::Relay(Box::new(Relays::new()?))
+        } else {
+            Self::Off
+        })
+    }
+
+    /// The push relays, when pushes go through them.
+    pub(crate) fn push_relays(&self) -> Option<&Relays> {
+        match self {
+            Self::Relay(relays) => Some(relays),
+            Self::Off => None,
         }
-        if push_relay {
-            return Ok(Self::Relay(Box::new(Relays::new()?)));
-        }
-        Ok(Self::Off)
     }
 
     pub(crate) fn is_off(&self) -> bool {
@@ -109,21 +97,28 @@ impl Delivery {
     pub(crate) fn name(&self) -> &'static str {
         match self {
             Self::Off => "off",
-            Self::OwnKey(_) => "own key",
-            Self::Relay(_) => "relay",
+            Self::Relay(_) => "push relay",
         }
     }
 
-    /// Whether this mode can send to `recipient`.
-    pub(crate) fn reaches(&self, recipient: &Recipient) -> bool {
-        matches!(
-            (self, recipient),
-            (Self::OwnKey(_), Recipient::Token(_)) | (Self::Relay(_), Recipient::Handle(_))
-        )
+    /// As `POST /api/apns` tells the phone, so its Settings can say how
+    /// this computer delivers: `None` when it sends nothing. An older
+    /// daemon could also say `own_key`, which the phone reads as unknown.
+    pub(crate) fn wire_name(&self) -> Option<&'static str> {
+        match self {
+            Self::Off => None,
+            Self::Relay(_) => Some("push_relay"),
+        }
     }
 
-    /// Sends `sealed`, sealed to `key`, to `recipient` under `tag` as its
-    /// collapse id, at `now_ms`.
+    /// Whether this mode can send to `recipient`: only the relay, and only
+    /// to a handle. A plain token is never sent to.
+    pub(crate) fn reaches(&self, recipient: &Recipient) -> bool {
+        matches!((self, recipient), (Self::Relay(_), Recipient::Handle(_)))
+    }
+
+    /// Sends `sealed`, sealed to `key`, to `recipient`, collapsing under
+    /// `tag` in the pairing's scope (`alert::scope`), at `now_ms`.
     pub(crate) async fn alert(
         &self,
         recipient: &Recipient,
@@ -132,22 +127,15 @@ impl Delivery {
         tag: &str,
         now_ms: u64,
     ) -> Sent {
+        let scope = alert::scope(key);
         match (self, recipient) {
-            (Self::OwnKey(sender), Recipient::Token(token)) => {
-                let Ok(push) = alert::push(sealed, tag, |plaintext| {
-                    Ok(seal::seal(key, plaintext, seal::INFO)?)
-                }) else {
-                    return Sent::Unsent;
-                };
-                sender.post(token, &push, now_ms / 1000).await.into()
-            }
             (Self::Relay(relays), Recipient::Handle(handle)) => {
                 if relays.is_down(handle.environment(), now_ms) {
                     return Sent::Unreachable;
                 }
-                let clear = alert::clear(&sealed.pane, tag);
+                let clear = alert::clear(&scope, &sealed.pane, tag);
                 let Ok(push) = SealedPush::build(key, seal::INFO, &clear, |sealer| {
-                    alert::push(sealed, tag, |plaintext| Ok(sealer.seal(plaintext)?))
+                    alert::push(sealed, &scope, tag, |plaintext| Ok(sealer.seal(plaintext)?))
                 }) else {
                     return Sent::Unsent;
                 };
@@ -169,12 +157,6 @@ impl Delivery {
     ) -> Sent {
         let now_s = now_ms / 1000;
         match (self, recipient) {
-            (Self::OwnKey(sender), Recipient::Token(token)) => {
-                let Ok(push) = live.push(now_s) else {
-                    return Sent::Unsent;
-                };
-                sender.post(token, &push, now_s).await.into()
-            }
             (Self::Relay(relays), Recipient::Handle(handle)) => {
                 let Some(key) = key else {
                     return Sent::Unsent;
@@ -239,6 +221,21 @@ impl Relays {
         self.relay(host)
             .down_until_ms
             .fetch_max(now_ms.saturating_add(OUTAGE_MS), Ordering::Relaxed);
+    }
+
+    /// Asks the push relay `handle` names to refuse it from now on, or
+    /// gives up at once while that push relay is out: revoking is best effort, and the
+    /// handle's credential runs out on its own.
+    pub(crate) async fn revoke(&self, handle: &Handle, now_ms: u64) -> RelayOutcome {
+        let host = handle.environment();
+        if self.is_down(host, now_ms) {
+            return RelayOutcome::Unavailable;
+        }
+        let outcome = self.relay(host).client.revoke(handle.secret()).await;
+        if outcome == RelayOutcome::Unavailable {
+            self.mark_down(host, now_ms);
+        }
+        outcome
     }
 
     /// Sends `push` to the relay `handle` names, or drops it while that

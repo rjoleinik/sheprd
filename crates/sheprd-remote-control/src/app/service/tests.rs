@@ -91,7 +91,7 @@ fn the_daemon_runs_with_every_setting_as_an_argument() {
         port: 9443,
         // Sheprd's own: presence runs beside the daemon, not in its args.
         presence: true,
-        push_relay: false,
+        push_relay: true,
         relays: vec![
             "https://relay.example.org".into(),
             crate::app::config::Relay {

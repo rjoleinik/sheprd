@@ -40,6 +40,9 @@ pub struct Transcript {
     /// come, without asking.
     #[serde(default)]
     pub auto_accept: bool,
+    /// Prompts another agent wrote, oldest first (revision 4).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub briefs: Vec<crate::Brief>,
     /// How many attached clients watch, not counting the program's own view.
     #[serde(default)]
     pub clients: u32,

@@ -53,6 +53,17 @@ pub(crate) struct WorkspaceTarget {
     pub(super) muted: bool,
 }
 
+impl WorkspaceTarget {
+    pub(crate) fn id(&self) -> &str {
+        &self.id
+    }
+
+    /// Who renames it: Herdr 1's daemon, or the app.
+    pub(crate) fn keeper(&self) -> sheprd_session::Keeper {
+        self.keeper
+    }
+}
+
 /// How a worktree request tells the daemon which repository it is for.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum Source {
@@ -796,6 +807,9 @@ impl SheprdWindow {
         ) && let Some(target) = self.linked_new_worktree_target()
         {
             self.menu.target = Some(target);
+        }
+        if action == WorkspaceAction::Rename {
+            self.offer_naming(crate::naming::Field::Workspace);
         }
         let note = (action == WorkspaceAction::Note).then(|| self.note_draft(cx));
         let Some(target) = &self.menu.target else {

@@ -20,6 +20,9 @@ pub(crate) const APPROVAL_TTL_MS: u64 = 120_000;
 /// Each one is a fresh guess at the code for a man in the middle, and
 /// keeps the pairing open a little longer, so both stay bounded.
 pub(crate) const MAX_NEARBY_REVEALS: u8 = 3;
+/// How long a pairing link's token can be claimed: the relays' pairing
+/// dial lasts as long, and the link has to be sent to the other computer.
+pub(crate) const LINK_TTL_MS: u64 = 120_000;
 /// Finished claims whose outcome a phone can still poll.
 const REMEMBERED_OUTCOMES: usize = 8;
 
@@ -83,7 +86,26 @@ struct Open {
     nearby: Option<NearbyToken>,
     /// Nearby tokens sealed so far, kept when the QR rotates.
     nearby_reveals: u8,
+    /// The token of the pairing link the dialog copied, kept when the QR
+    /// rotates.
+    link: Option<LinkToken>,
     phase: Phase,
+}
+
+/// A pairing link's token (`control::pairing_link`): claimed through the
+/// relays, and its claim's code derived as a QR claim's is.
+#[derive(Debug)]
+struct LinkToken {
+    digest: [u8; 32],
+    expires_ms: u64,
+}
+
+/// Which of the open pairing's tokens a claim holds.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Held {
+    Link,
+    Nearby,
+    Qr,
 }
 
 /// A token sealed to a nearby phone after it agreed on `code` with the
@@ -122,11 +144,46 @@ enum Phase {
 impl Open {
     /// When the last token that may still be claimed expires.
     fn claimable_until(&self) -> u64 {
-        self.nearby
+        let link = self.link.as_ref().map_or(0, |link| link.expires_ms);
+        self.shown_until().max(link)
+    }
+
+    /// When the dialog mints its next QR: a link outlives the QR it was
+    /// copied beside, and minting again keeps it.
+    fn shown_until(&self) -> u64 {
+        let nearby = self.nearby.as_ref().map_or(0, |nearby| nearby.expires_ms);
+        self.token_expires_ms.max(nearby)
+    }
+
+    /// Which token `digest` is, if any.
+    fn held(&self, digest: &[u8; 32]) -> Option<Held> {
+        let nearby = self
+            .nearby
             .as_ref()
-            .map_or(self.token_expires_ms, |nearby| {
-                nearby.expires_ms.max(self.token_expires_ms)
-            })
+            .is_some_and(|nearby| constant_time_eq(&nearby.digest, digest));
+        let link = self
+            .link
+            .as_ref()
+            .is_some_and(|link| constant_time_eq(&link.digest, digest));
+        if nearby {
+            Some(Held::Nearby)
+        } else if link {
+            Some(Held::Link)
+        } else {
+            constant_time_eq(&self.token_digest, digest).then_some(Held::Qr)
+        }
+    }
+
+    /// Whether the `held` token may still be claimed.
+    fn live(&self, held: Held, now_ms: u64) -> bool {
+        match held {
+            Held::Nearby => self.nearby.as_ref().is_some_and(|token| token.live(now_ms)),
+            Held::Link => self
+                .link
+                .as_ref()
+                .is_some_and(|link| now_ms < link.expires_ms),
+            Held::Qr => now_ms < self.token_expires_ms,
+        }
     }
 
     /// Whether minting again keeps this pairing's id: nobody claimed it.
@@ -140,7 +197,7 @@ impl Open {
     fn view(&self, now_ms: u64) -> PairingState {
         match &self.phase {
             Phase::Waiting => PairingState::Waiting {
-                expires_in_ms: self.claimable_until().saturating_sub(now_ms),
+                expires_in_ms: self.shown_until().saturating_sub(now_ms),
             },
             Phase::Claimed { device, code, .. } => PairingState::Claimed {
                 device_name: device.name.clone(),
@@ -170,11 +227,15 @@ impl Pairings {
         let token = random_bytes::<SECRET_LEN>()?;
         // Rotating the QR keeps a token already sealed to a nearby phone,
         // which claims it moments later.
-        let (id, nearby, nearby_reveals) = match self.open.as_mut() {
-            Some(open) if open.unclaimed() => {
-                (open.id.clone(), open.nearby.take(), open.nearby_reveals)
-            }
-            _ => (PairingId(random_id()?), None, 0),
+        // So is a link the dialog copied, which takes longer to arrive.
+        let (id, nearby, nearby_reveals, link) = match self.open.as_mut() {
+            Some(open) if open.unclaimed() => (
+                open.id.clone(),
+                open.nearby.take(),
+                open.nearby_reveals,
+                open.link.take(),
+            ),
+            _ => (PairingId(random_id()?), None, 0, None),
         };
         self.close();
         let token_expires_ms = now_ms.saturating_add(TOKEN_TTL_MS);
@@ -184,6 +245,7 @@ impl Pairings {
             token_expires_ms,
             nearby,
             nearby_reveals,
+            link,
             phase: Phase::Waiting,
         });
         Ok(Offer {
@@ -215,13 +277,7 @@ impl Pairings {
         let Some(open) = self.open.as_mut() else {
             return Err(Error::InvalidToken);
         };
-        let nearby = open
-            .nearby
-            .as_ref()
-            .is_some_and(|nearby| constant_time_eq(&nearby.digest, &digest));
-        if !nearby && !constant_time_eq(&open.token_digest, &digest) {
-            return Err(Error::InvalidToken);
-        }
+        let held = open.held(&digest).ok_or(Error::InvalidToken)?;
         refresh(open, &mut self.outcomes, now_ms);
         match &open.phase {
             Phase::Waiting => {}
@@ -232,13 +288,8 @@ impl Pairings {
                 return Err(Error::AlreadyClaimed);
             }
         }
-        // The pairing outlives one token while the other may be claimed.
-        let expired = if nearby {
-            !open.nearby.as_ref().is_some_and(|token| token.live(now_ms))
-        } else {
-            now_ms >= open.token_expires_ms
-        };
-        if expired {
+        // The pairing outlives one token while another may be claimed.
+        if !open.live(held, now_ms) {
             return Err(Error::ExpiredToken);
         }
         let name = device_name(device_name_input)?;
@@ -256,7 +307,7 @@ impl Pairings {
         };
         // Single use: a nearby token's code is the one both screens agreed on.
         let code = match open.nearby.take() {
-            Some(token) if nearby => token.code,
+            Some(token) if held == Held::Nearby => token.code,
             other => {
                 open.nearby = other;
                 matching_code(&token, device.public_key.as_bytes(), &nonce)
@@ -285,12 +336,10 @@ impl Pairings {
             return false;
         };
         refresh(open, &mut self.outcomes, now_ms);
-        let nearby = open
-            .nearby
-            .as_ref()
-            .is_some_and(|nearby| constant_time_eq(&nearby.digest, &digest) && nearby.live(now_ms));
-        let qr = constant_time_eq(&open.token_digest, &digest) && now_ms < open.token_expires_ms;
-        matches!(open.phase, Phase::Waiting) && (nearby || qr)
+        matches!(open.phase, Phase::Waiting)
+            && open
+                .held(&digest)
+                .is_some_and(|held| open.live(held, now_ms))
     }
 
     /// Whether a pairing dialog is open and nobody claimed it: what nearby
@@ -326,6 +375,27 @@ impl Pairings {
             expires_ms: now_ms.saturating_add(TOKEN_TTL_MS),
         });
         Ok(())
+    }
+
+    /// Keeps `token` as pairing `id`'s link token, claimable for
+    /// [`LINK_TTL_MS`]; a newer link replaces it. Returns how long it
+    /// lasts.
+    pub(crate) fn set_link(
+        &mut self,
+        id: &PairingId,
+        token: &[u8; SECRET_LEN],
+        now_ms: u64,
+    ) -> Result<u64> {
+        let open = find(&mut self.open, id)?;
+        refresh(open, &mut self.outcomes, now_ms);
+        if !matches!(open.phase, Phase::Waiting) {
+            return Err(Error::NoPairing);
+        }
+        open.link = Some(LinkToken {
+            digest: sha256(&[token]),
+            expires_ms: now_ms.saturating_add(LINK_TTL_MS),
+        });
+        Ok(LINK_TTL_MS)
     }
 
     /// Keeps the relay keys the phone sent with `claim`, so approving it

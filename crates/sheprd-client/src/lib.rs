@@ -5,6 +5,7 @@
 // Tests start real processes; production code builds them with `new_command`.
 #![cfg_attr(test, allow(clippy::disallowed_methods))]
 
+pub mod agent_choice;
 mod catalog;
 pub mod clipboard;
 mod compat;
@@ -28,6 +29,7 @@ mod local_network;
 pub mod local_path;
 pub mod login_env;
 mod method;
+pub mod one_shot;
 mod options;
 pub mod private_endpoint;
 pub mod private_file;

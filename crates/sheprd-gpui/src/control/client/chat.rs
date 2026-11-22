@@ -42,9 +42,10 @@ pub(super) fn describe(chat: &ChatInfo) -> String {
 pub(super) fn chat(command: ChatCommand, context: &Context) -> crate::Result<Output> {
     let op = match command {
         ChatCommand::Status => ChatOp::Status,
-        ChatCommand::New { agent, pane } => ChatOp::New {
+        ChatCommand::New { agent, pane, brief } => ChatOp::New {
             agent: agent.map(|agent| agent.name().to_owned()),
             pane,
+            prompt: brief.map(crate::control::brief::read).transpose()?,
         },
         ChatCommand::Convert { pane } => ChatOp::Convert { pane },
         ChatCommand::View { switch, pane } => ChatOp::View { switch, pane },

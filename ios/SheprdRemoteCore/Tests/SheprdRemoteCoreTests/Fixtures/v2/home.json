@@ -132,6 +132,7 @@
         },
         "session": "default",
         "unopened_commits": 3,
+        "uncommitted": true,
         "chats": [],
         "terminals": []
       }

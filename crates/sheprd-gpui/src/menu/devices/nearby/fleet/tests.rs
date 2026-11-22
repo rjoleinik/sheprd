@@ -82,7 +82,8 @@ mod page {
         fleet::bluetooth::{ClaimFleet, Hint},
     };
 
-    fn exchanging(view: &mut SheprdWindow) {
+    fn exchanging(view: &mut SheprdWindow, cx: &mut gpui::Context<SheprdWindow>) {
+        let link = crate::menu::devices::nearby::link::input(view, cx);
         view.menu.nearby_setup = Some(NearbySetup {
             attempt: crate::menu::devices::nearby::next_attempt(),
             found: Vec::new(),
@@ -90,6 +91,7 @@ mod page {
             pairing: None,
             radio: None,
             scanner: None,
+            link,
             step: Step::Exchanging(Found {
                 peripheral: "p".into(),
                 name: "Studio".into(),
@@ -120,7 +122,7 @@ mod page {
         window.update_in(cx, |view, window, cx| {
             Fleet::install(cx);
             Fleet::set_view(cx, Some(view_of_member()));
-            exchanging(view);
+            exchanging(view, cx);
             view.nearby_output(code(None), window, cx);
             assert_eq!(step(view), (Offer::Invite(hint(OURS)), false));
             view.choose_nearby_fleet(false, cx);
@@ -137,10 +139,10 @@ mod page {
         window.update_in(cx, |view, window, cx| {
             Fleet::install(cx);
             Fleet::set_view(cx, Some(view_of_member()));
-            exchanging(view);
+            exchanging(view, cx);
             view.nearby_output(code(Some(hint(OURS))), window, cx);
             assert_eq!(step(view), (Offer::Same, true));
-            exchanging(view);
+            exchanging(view, cx);
             view.nearby_output(code(Some(hint(THEIRS))), window, cx);
             assert_eq!(step(view), (Offer::Other(hint(OURS)), true));
         });
@@ -152,7 +154,7 @@ mod page {
         window.update_in(cx, |view, window, cx| {
             Fleet::install(cx);
             Fleet::set_view(cx, None);
-            exchanging(view);
+            exchanging(view, cx);
             view.nearby_output(code(Some(hint(THEIRS))), window, cx);
             assert_eq!(step(view), (Offer::Join(hint(THEIRS)), false));
             let attempt = view.menu.nearby_setup.as_ref().unwrap().attempt;
@@ -171,7 +173,7 @@ mod page {
         window.update_in(cx, |view, window, cx| {
             Fleet::install(cx);
             Fleet::set_view(cx, None);
-            exchanging(view);
+            exchanging(view, cx);
             view.nearby_output(code(None), window, cx);
             assert_eq!(step(view), (Offer::Found, false));
             let attempt = view.menu.nearby_setup.as_ref().unwrap().attempt;

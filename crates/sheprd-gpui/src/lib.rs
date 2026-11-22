@@ -112,6 +112,7 @@ mod mockup;
 mod mods;
 mod motion;
 mod multiline_input;
+mod naming;
 mod navigation;
 mod network_quality;
 mod notification_mutes;

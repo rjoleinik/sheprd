@@ -65,12 +65,12 @@ pub(crate) struct Allowed {
     pub(crate) fleet: Option<ApprovedFleet>,
 }
 
-/// Claims the computer `opened` describes; `claimed` runs once its user is
-/// asked. Fails unless it is allowed.
+/// Claims the computer `opened` describes; `claimed` runs with the code
+/// both screens show once its user is asked. Fails unless it is allowed.
 pub(crate) async fn claim(
     opened: &Opened,
     claimant: &Claimant<'_>,
-    claimed: impl FnOnce(),
+    claimed: impl FnOnce(&str),
 ) -> Result<Allowed> {
     let info = opened.relay.as_ref().ok_or(Error::NoRelays)?;
     let identity = sheprd_tunnel::Identity::from_bytes(
@@ -111,11 +111,17 @@ pub(crate) async fn claim(
     )
     .await?;
     let claim: ClaimAnswer = serde_json::from_slice(&claim).map_err(|_| Error::ClaimFormat)?;
-    // The daemon gives the claim the code both screens agreed on.
-    if !auth::constant_time_eq(claim.code.as_bytes(), opened.code.as_bytes()) {
+    // The daemon gives a nearby claim the code both screens agreed on; a
+    // link's code is the daemon's, which the person compares on both.
+    if let Some(code) = &opened.code
+        && !auth::constant_time_eq(claim.code.as_bytes(), code.as_bytes())
+    {
         return Err(Error::CodeMismatch);
     }
-    claimed();
+    if !valid_code(&claim.code) {
+        return Err(Error::ClaimFormat);
+    }
+    claimed(&claim.code);
     let (login, fleet) = answer(&mut sender, &claim.claim).await?;
     drop(connection);
     let fleet = super::joining::checked(opened, claimant.fleet, fleet);
@@ -132,6 +138,11 @@ pub(crate) async fn claim(
         login,
         fleet,
     })
+}
+
+/// Six digits, as every code both screens show is.
+fn valid_code(code: &str) -> bool {
+    code.len() == 6 && code.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 /// The claim's body: this computer's name, a device key the API wants,

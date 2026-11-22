@@ -1,7 +1,6 @@
 //! `POST /api/apns/test`: the phone asks this computer to send it one
-//! sealed alert now, to see notifications arrive, with the daemon's own
-//! key or through the push relay. The answer is what APNs or the relay
-//! said; the phone's extension records the id when the alert opens, so the
+//! sealed alert now, through the push relay, to see notifications arrive.
+//! The answer is what the relay said; the phone's extension records the id when the alert opens, so the
 //! app can tell whether, and how fast, it came.
 
 use super::{ApiError, Device, Shared, now_ms};
@@ -18,22 +17,20 @@ pub(super) struct TestRequest {
     id: String,
 }
 
-/// What APNs or the relay answered. `reason` is one of Apple's fixed
-/// names; the relay gives none.
+/// What the push relay answered. It gives a status but no reason, so an
+/// app that reads `reason` finds none.
 #[derive(Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case", tag = "outcome")]
 pub(super) enum TestAnswer {
     Delivered,
-    /// APNs no longer knows this phone's alert token: it is forgotten, and
+    /// APNs no longer knows this phone's alert handle: it is forgotten, and
     /// the phone registers a new one when it next opens.
     Gone,
     Limited,
     Refused {
         status: u16,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        reason: Option<String>,
     },
-    /// APNs or the relay could not be reached.
+    /// The relay could not be reached.
     Unreachable,
 }
 
@@ -70,7 +67,9 @@ pub(super) async fn send(
         badge,
     );
     let tag = format!("test-{}", request.id);
-    let answer = match state.apns.alert(&token, &key, sealed, &tag, now_ms()).await {
+    let sent = state.apns.alert(&token, &key, sealed, &tag, now_ms()).await;
+    state.pushes.record(apns::Kind::Alert, &sent, now_ms());
+    let answer = match sent {
         Sent::Delivered => TestAnswer::Delivered,
         Sent::Gone => {
             let state = state.clone();
@@ -81,7 +80,7 @@ pub(super) async fn send(
             TestAnswer::Gone
         }
         Sent::Limited => TestAnswer::Limited,
-        Sent::Refused { status, reason } => TestAnswer::Refused { status, reason },
+        Sent::Refused { status } => TestAnswer::Refused { status },
         Sent::Unreachable => {
             tracing::warn!(delivery = state.apns.name(), "could not send a test push");
             TestAnswer::Unreachable

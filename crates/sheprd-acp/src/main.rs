@@ -4,6 +4,7 @@
 mod agents;
 mod app;
 mod attach;
+mod briefs;
 mod claude;
 mod cli;
 mod codex;

@@ -3,7 +3,9 @@
 
 use super::*;
 use crate::{
-    control::pull_requests::{PullRequests, Tone, UnopenedBranch, WorkspacePullRequest},
+    control::pull_requests::{
+        PullRequests, Tone, UncommittedCheckout, UnopenedBranch, WorkspacePullRequest,
+    },
     hub::Summary,
     load::Load,
 };
@@ -144,6 +146,11 @@ fn home() -> Home {
             cwd: "/work-spaces-tab".into(),
             branch: "worktree/spaces-tab".into(),
             commits: 3,
+        }],
+        uncommitted: vec![UncommittedCheckout {
+            workspace_id: "w3".into(),
+            cwd: "/work-spaces-tab".into(),
+            branch: "worktree/spaces-tab".into(),
         }],
     };
     let mut home = Home::project(Sources {

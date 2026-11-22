@@ -9,7 +9,10 @@ use crate::auth::{
     self, PublicKey, decode_fixed, encode,
     nearby::{self, code, commit, fingerprint_bytes, shared_secret, transcript},
 };
-use crate::control::{NearbyRevealed, NearbyStarted, fleet::bluetooth::Hint, host_relay::Info};
+use crate::control::{
+    NearbyRevealed, NearbyStarted, fleet::bluetooth::Hint, host_relay::Info,
+    pairing_link::PairingLink,
+};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use p256::{SecretKey, elliptic_curve::zeroize::Zeroizing};
 use serde::Deserialize;
@@ -25,8 +28,9 @@ pub(crate) struct Exchange {
 /// What the other computer sealed to this one, opened.
 #[derive(Debug)]
 pub(crate) struct Opened {
-    /// The six digits both screens show.
-    pub(crate) code: String,
+    /// The six digits both screens show, agreed before the claim; `None`
+    /// for a pairing link, whose claim's answer brings them.
+    pub(crate) code: Option<String>,
     /// What the other computer calls itself.
     pub(crate) computer: String,
     /// Its certificate authority's SHA-256, which its TLS must present.
@@ -124,13 +128,28 @@ impl Exchange {
             serde_json::from_slice(&plaintext).map_err(|_| auth::Error::NearbyCrypto)?;
         let token: [u8; 32] = decode_fixed(&sealed.token).map_err(|_| auth::Error::NearbyCrypto)?;
         Ok(Opened {
-            code: code(&transcript),
+            code: Some(code(&transcript)),
             computer: started.computer,
             fingerprint,
             token: Zeroizing::new(token),
             relay: sealed.relay.filter(Info::valid),
             fleet: sealed.fleet.filter(Hint::valid),
         })
+    }
+}
+
+impl From<PairingLink> for Opened {
+    /// What a pairing link names, as an offer would: the person who pasted
+    /// it vouches for it, and compares the code once the claim is taken.
+    fn from(link: PairingLink) -> Self {
+        Self {
+            code: None,
+            computer: link.computer,
+            fingerprint: link.fingerprint,
+            token: Zeroizing::new(link.token.0),
+            relay: Some(link.relay),
+            fleet: link.fleet,
+        }
     }
 }
 

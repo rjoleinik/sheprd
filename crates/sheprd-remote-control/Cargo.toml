@@ -135,5 +135,7 @@ sheprd-relay                = { features = ["client", "server"], workspace = tru
 # A plain host's agent on loopback, taking removals from the daemon.
 sheprd-relay-agent          = { features = ["runtime"], workspace = true }
 roxmltree.workspace         = true
+# A paused clock, so tests bound the daemon's own waits and not load.
+tokio                       = { features = ["test-util"], workspace = true }
 tokio-tungstenite.workspace = true
 tower.workspace             = true

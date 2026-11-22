@@ -47,8 +47,8 @@ Runtime dependencies include GPUI, `sheprd-client`, `serde_json` for API paramet
 as `config_loader`, TOML-only) for GUI configuration. `toml` preserves strict
 field types during deserialization; `toml_edit` preserves comments on settings saves.
 
-Solid light/heavy box-drawing characters, block elements (including fractional
-blocks and quadrants), and the four solid prompt separators (U+E0B0, U+E0B2,
+Solid light/heavy box-drawing characters, rounded box corners, block elements
+(including fractional blocks and quadrants), and the four solid prompt separators (U+E0B0, U+E0B2,
 U+E0B4, and U+E0B6) are drawn on the terminal cell grid, with device-pixel-aligned
 edges. Borders, block-art logos, and prompt caps reach the full cell height
 regardless of font line spacing. The sub-cell remainder below the grid continues
@@ -57,7 +57,7 @@ edge, unless that row holds one of these separators, so a prompt on the last row
 stays cell-high. Backgrounds, highlights, underlines, and separators share snapped
 absolute cell edges to prevent one-pixel seams at fractional cell widths. This
 rendering is independent of the program producing the terminal cells.
-Dashed, double, rounded and diagonal box lines, shading characters, and
+Dashed, double and diagonal box lines, shading characters, and
 graphemes with combining marks continue to use font rendering.
 
 ```sh

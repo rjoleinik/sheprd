@@ -5,6 +5,7 @@
 //! have one order and a client's catch-up can never interleave with a change.
 
 mod agent;
+mod briefs;
 mod carry;
 mod commands;
 mod harness;
@@ -190,6 +191,7 @@ pub(crate) struct Session<R: FnMut(Update)> {
     acp_session: Option<wire::SessionId>,
     activity: Option<Activity>,
     asked: HashMap<PermissionId, Asked>,
+    briefs: briefs::Briefs,
     /// The whole commands of shell calls, which their titles cut short.
     commands: pull_requests::Commands,
     config: Config,
@@ -236,6 +238,11 @@ impl<R: FnMut(Update)> Session<R> {
         let mut told = crate::context::Told::default();
         if let Some(mut history) = config.history.take() {
             told = crate::context::hide(&mut history);
+            for entry in &mut history.entries {
+                if let sheprd_chat_protocol::EntryKind::User { text, files: 0 } = &mut entry.kind {
+                    *text = crate::project::shown(text).to_owned();
+                }
+            }
             transcript.entries = history.entries;
             transcript.truncated = history.truncated;
             transcript.usage = history.usage;
@@ -274,6 +281,7 @@ impl<R: FnMut(Update)> Session<R> {
             acp_session: None,
             activity: None,
             asked: HashMap::new(),
+            briefs: briefs::Briefs::default(),
             commands: pull_requests::Commands::default(),
             config,
             context,
@@ -418,6 +426,7 @@ impl<R: FnMut(Update)> Session<R> {
         self.report_activity();
         self.pictures_after(&change);
         self.find_pull_requests(&change);
+        self.find_brief(&change);
     }
 
     fn emit_all(&mut self, changes: impl IntoIterator<Item = Change>) {

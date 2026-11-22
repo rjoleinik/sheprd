@@ -94,7 +94,6 @@ fn a_later_request_is_asked_about_and_closing_declines(cx: &mut TestAppContext) 
         },
         target: None,
         via: "MacBook Pro".into(),
-        apns: None,
     };
     cx.update(|_, cx| Supervisor::queue_host_ask_for_tests(cx, job));
     // Only the window in front asks.

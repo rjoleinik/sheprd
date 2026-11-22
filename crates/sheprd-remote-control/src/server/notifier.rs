@@ -4,9 +4,9 @@
 //! in plain terminals have no transcript: their settled status changes,
 //! read from the layout every tick, alert instead. A
 //! device the native app registered for alerts gets them sealed through
-//! APNs, with the user's own key or through the push relay; any other, or
-//! one whose APNs push failed, gets Web Push, which is blocking HTTPS on the
-//! blocking pool. A push service that says a token, handle, or subscription
+//! the push relay; any other, or one whose push failed, gets Web Push where
+//! it subscribed (the native app never does), which is blocking HTTPS on
+//! the blocking pool. A push service that says a token, handle, or subscription
 //! is gone drops it from the device. While Sheprd marks a device near
 //! (presence), its alerts are held and go out when the owner leaves.
 
@@ -431,6 +431,7 @@ async fn send_alert(state: &Arc<State>, device: &DeviceId, notification: &Notifi
         .apns
         .alert(&recipient, &key, sealed, &notification.tag, now_ms())
         .await;
+    state.pushes.record(apns::Kind::Alert, &sent, now_ms());
     if sent == Sent::Gone {
         let state = state.clone();
         let device = device.clone();
@@ -468,7 +469,7 @@ fn send(state: &State, device: &DeviceId, notification: &Notification) {
         return;
     };
     let message = notification.message(waiting(state));
-    let delivery = Delivery::for_notification(notification);
+    let delivery = Delivery::for_notification(notification, &apns::computer_id(&state.fingerprint));
     if let Ok(Outcome::Gone) = sender.send(&subscription, &message, &delivery) {
         let _ = state.auth().devices_mut().set_push(device, None);
     }

@@ -34,7 +34,7 @@ pub(crate) enum Target {
 }
 
 impl Target {
-    fn tab(&self) -> TabId {
+    pub(crate) fn tab(&self) -> TabId {
         match self {
             Self::Tab(tab) | Self::Pane { tab, .. } => *tab,
         }
@@ -253,6 +253,10 @@ impl SheprdWindow {
                 menu.input = Some(input);
             }
             self.menu.page = Some(Page::RenameCore);
+            // A tab is named for what its panes hold; a pane keeps its own.
+            if matches!(target, Target::Tab(_)) {
+                self.offer_naming(crate::naming::Field::CoreTab);
+            }
             cx.notify();
             return;
         }
@@ -480,6 +484,19 @@ impl SheprdWindow {
         }
     }
 
+    /// What the rename page's field holds.
+    pub(crate) fn core_rename_text(&self, cx: &App) -> Option<String> {
+        let input = self.menu.core.as_ref()?.input.as_ref()?;
+        Some(input.read(cx).text().to_owned())
+    }
+
+    /// Puts `name` in the rename page's field, selected so typing replaces it.
+    pub(crate) fn fill_core_rename(&mut self, name: &str, cx: &mut Context<Self>) {
+        if let Some(input) = self.menu.core.as_ref().and_then(|menu| menu.input.clone()) {
+            input.update(cx, |input, cx| input.set_text_selected(name, cx));
+        }
+    }
+
     /// Names the menu's tab or pane what was typed, or clears the name.
     fn submit_core_rename(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(menu) = &self.menu.core else {
@@ -596,6 +613,7 @@ impl SheprdWindow {
                         .child(fl!("pane-menu-rename-hint")),
                 )
                 .children(menu.input.clone())
+                .children(self.render_naming(cx))
                 .child(
                     div()
                         .flex()

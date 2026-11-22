@@ -112,7 +112,6 @@ impl Localize for enroll::Error {
     fn localize(&self) -> String {
         match self {
             // keep-sorted start
-            Self::ApnsSize => fl!("error-remote-control-enroll-apns-size"),
             Self::Config { path, .. } => fl!(
                 "error-remote-control-enroll-config",
                 path = path.display().to_string()

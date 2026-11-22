@@ -108,6 +108,9 @@ public struct Home: Codable, Hashable, Sendable {
         /// Commits on its branch that no pull request carries yet; older
         /// computers leave it out.
         public var unopenedCommits: Int?
+        /// Its checkout has uncommitted changes, untracked files included,
+        /// as the desktop marks it with a pencil; older computers leave it out.
+        public var uncommitted: Bool? = nil
         public var chats: [ChatRow]
         public var terminals: [TerminalRow]
         /// The GitHub repository and branch its pull request would be on,
@@ -122,6 +125,7 @@ public struct Home: Codable, Hashable, Sendable {
             case id, label, branch, cwd, worktree, session, chats, terminals, github
             case pullRequest = "pull_request"
             case unopenedCommits = "unopened_commits"
+            case uncommitted
         }
     }
 

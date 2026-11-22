@@ -88,6 +88,7 @@ pub(crate) fn answer(state: &State, stop: &watch::Sender<bool>, request: Request
             state.changes.seen();
             return Response::Status(status(state));
         }
+        Request::PushStatus => return Response::PushStatus(state.pushes.status(&state.apns)),
         Request::ChangeAsks => {
             let (asks, layout) = state.changes.take(control::ASK_WAIT);
             return Response::ChangeAsks { asks, layout };
@@ -157,6 +158,24 @@ pub(crate) fn answer(state: &State, stop: &watch::Sender<bool>, request: Request
                 relay.devices_changed();
             }
             answered
+        }
+        Request::PairLink { id } => {
+            let linked = {
+                // Read before the auth lock: the two never nest.
+                let hint = state
+                    .fleet
+                    .as_deref()
+                    .and_then(crate::fleet::bluetooth::hint);
+                let mut auth = state.auth();
+                crate::relay::refresh_offer(state.relay.as_deref(), &mut auth);
+                auth.pair_link(&id, &state.computer, &state.fingerprint, hint, now)
+                    .map(|(link, expires_in_ms)| Response::PairLink {
+                        link,
+                        expires_in_ms,
+                    })
+            };
+            crate::relay::open_pairing(state);
+            linked
         }
         Request::CancelPairing { id } => state.auth().cancel(&id).map(|()| Response::Done),
         // Sheprd relays these from a phone over Bluetooth; the code the

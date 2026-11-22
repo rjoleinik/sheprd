@@ -151,6 +151,8 @@ pub(crate) struct MenuState {
     /// The name a new tab or workspace dialog proposed. Submitting it
     /// unchanged, or nothing, leaves naming to the daemon, as Herdr does.
     pub(super) suggested_name: Option<String>,
+    /// The agent naming a rename dialog offers, and its request under way.
+    pub(crate) naming: Option<crate::naming::Naming>,
     pub(super) worktree_open: Option<super::worktree_open::Picker>,
     pub(super) keybinds_scroll: ScrollHandle,
     pub(crate) keybinds_search: Option<Entity<crate::search_input::SearchInput>>,
@@ -434,6 +436,7 @@ impl MenuState {
             close_check: None,
             creation: None,
             suggested_name: None,
+            naming: None,
             worktree_open: None,
             keybinds_scroll: ScrollHandle::new(),
             keybinds_search: None,
@@ -479,6 +482,11 @@ impl MenuState {
             dispatch: None,
             landing: None,
         }
+    }
+
+    /// The workspace the open workspace menu or dialog is about.
+    pub(crate) fn workspace_target(&self) -> Option<&WorkspaceTarget> {
+        self.target.as_ref()
     }
 
     pub fn reset(&mut self) {
@@ -558,6 +566,7 @@ impl MenuState {
         self.close_check = None;
         self.creation = None;
         self.suggested_name = None;
+        self.naming = None;
         self.worktree_open = None;
         self.close = None;
         self.worktree = None;

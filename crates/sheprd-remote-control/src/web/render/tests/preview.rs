@@ -220,6 +220,7 @@ fn write_preview_pages() {
             })
             .collect(),
         unopened: Vec::new(),
+        uncommitted: Vec::new(),
     };
     let lists = Lists {
         pull_requests: Some(&pull_requests),

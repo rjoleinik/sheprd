@@ -1,4 +1,4 @@
-//! `POST /api/apns/test`, up to the point it would reach APNs.
+//! `POST /api/apns/test`, up to the point it would reach the push relay.
 
 use super::*;
 use axum::http::{Request as HttpRequest, StatusCode, header};
@@ -12,24 +12,24 @@ fn test_post(token: Option<&str>, body: serde_json::Value) -> HttpRequest<Body> 
     request.body(Body::from(body.to_string())).unwrap()
 }
 
-/// A state whose daemon has an APNs key.
-fn with_apns(dir: &std::path::Path) -> Shared {
+/// A state whose daemon sends through the push relay.
+fn with_relay(dir: &std::path::Path) -> Shared {
     let mut state = state(dir);
     Arc::get_mut(&mut state).unwrap().apns =
-        crate::apns::Delivery::OwnKey(Box::new(crate::apns::sender_for_tests()));
+        crate::apns::Delivery::Relay(Box::new(crate::apns::Relays::new().unwrap()));
     state
 }
 
 #[tokio::test]
 async fn a_test_push_needs_a_session() {
     let dir = tempfile::tempdir().unwrap();
-    let state = with_apns(dir.path());
+    let state = with_relay(dir.path());
     let (status, _, _) = send(&state, test_post(None, json!({"id": "a"}))).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
-async fn without_an_apns_key_the_phone_hears_push_is_not_set_up() {
+async fn without_the_push_relay_the_phone_hears_push_is_not_set_up() {
     let dir = tempfile::tempdir().unwrap();
     let state = state(dir.path());
     let (_, token) = signed_in(&state, 1);
@@ -40,7 +40,7 @@ async fn without_an_apns_key_the_phone_hears_push_is_not_set_up() {
 #[tokio::test]
 async fn a_bad_id_or_an_unregistered_phone_is_refused_before_apns() {
     let dir = tempfile::tempdir().unwrap();
-    let state = with_apns(dir.path());
+    let state = with_relay(dir.path());
     let (_, token) = signed_in(&state, 1);
     for body in [
         json!({"id": "not valid"}),
@@ -56,11 +56,9 @@ async fn a_bad_id_or_an_unregistered_phone_is_refused_before_apns() {
 }
 
 #[tokio::test]
-async fn through_the_relay_a_phone_with_only_a_token_is_not_registered() {
+async fn a_phone_with_only_a_plain_token_is_not_registered() {
     let dir = tempfile::tempdir().unwrap();
-    let mut state = state(dir.path());
-    Arc::get_mut(&mut state).unwrap().apns =
-        crate::apns::Delivery::Relay(Box::new(crate::apns::Relays::new().unwrap()));
+    let state = with_relay(dir.path());
     let (device, token) = signed_in(&state, 1);
     let key = p256::SecretKey::from_slice(&[5; 32])
         .unwrap()

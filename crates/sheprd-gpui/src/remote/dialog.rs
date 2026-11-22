@@ -18,6 +18,7 @@ mod addresses;
 mod computer_fleet;
 mod fleet_line;
 mod hosts;
+mod link;
 mod share_github;
 
 /// What keeps this computer advertised for nearby pairing.
@@ -160,9 +161,12 @@ impl SheprdWindow {
                         &result,
                         Ok(sheprd_remote_control::control::Response::Offer(_))
                     );
-                    dialog
-                        .pairing
-                        .receive(&ticket, result, cx.background_executor().now());
+                    let now = cx.background_executor().now();
+                    dialog.pairing.receive(&ticket, result, now);
+                    // Copy link: on the clipboard once the daemon made it.
+                    if let Some(link) = dialog.pairing.take_link(now) {
+                        cx.write_to_clipboard(ClipboardItem::new_string(link));
+                    }
                     if new_offer {
                         dialog.reveal_selected_address();
                     }
@@ -466,6 +470,7 @@ impl SheprdWindow {
                         ))
                 }))
                 .children(self.nearby_hint(cx))
+                .children(self.pairing_link(cx))
                 .child(self.get_app_link()),
             None => div()
                 .text_color(rgb(theme.subtext()))

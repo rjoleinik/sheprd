@@ -546,8 +546,8 @@ final class RemoteClient: Sendable {
         )
     }
 
-    func registerAPNs(_ registration: API.APNsRegistration, bearer: String) async throws {
-        let _: EmptyAnswer = try await send("POST", "/api/apns", body: registration, bearer: bearer)
+    func registerAPNs(_ registration: API.APNsRegistration, bearer: String) async throws -> API.APNsAnswer {
+        try await send("POST", "/api/apns", body: registration, bearer: bearer)
     }
 
     /// Asks the computer to send this phone a sealed test alert carrying `id`.
@@ -666,12 +666,10 @@ actor Sessions {
     private var reached: [String: String] = [:]
 
     /// A token from the first of the computer's addresses that answers,
-    /// trying the last one that did first.
-    func session(for computer: Computer) async throws -> (client: RemoteClient, token: String) {
-        var origins = computer.origins
-        if let last = reached[computer.device], let index = origins.firstIndex(of: last) {
-            origins.insert(origins.remove(at: index), at: 0)
-        }
+    /// trying the last one that did first, then `fallback`: its relay
+    /// proxy's, for a computer the phone may reach only through a relay.
+    func session(for computer: Computer, fallback: [String] = []) async throws -> (client: RemoteClient, token: String) {
+        let origins = computer.sessionOrigins(last: reached[computer.device], fallback: fallback)
         let minted = try await mint(computer, at: origins, round: computer.device)
         return (minted.client, minted.token)
     }

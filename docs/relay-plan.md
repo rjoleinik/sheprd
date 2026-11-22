@@ -628,6 +628,10 @@ The ML-KEM key (1,184 bytes) would make the QR too dense to scan off a
 screen, so the QR carries its fingerprint and the key arrives inside the
 pairing channel.
 
+Not built for the QR yet. The pairing link a desktop copies (Adding a
+Sheprd from a link) carries these fields and the full identity, as it is
+pasted rather than scanned.
+
 ### Steps
 
 1. **The computer** makes `S` and derives a **pairing dial key** from it
@@ -1125,6 +1129,40 @@ relays. As with SSH machines, `git` and a typed `ssh` do not use the
 proxy. The Linux and Windows scanning is compile-checked and its state
 machine tested without a radio; it has not yet been tried between two
 real computers.
+
+### Adding a Sheprd from a link
+
+**Built.** The same as Adding a nearby Sheprd from another network, with
+a pairing link in place of Bluetooth, for two computers out of radio
+range with no route between them.
+
+1. **B** opens Remote control > Pair device and clicks **Copy link**
+   (`Request::PairLink`). Its daemon makes a second token for the open
+   pairing, claimable for two minutes (`auth::pairing::LINK_TTL_MS`),
+   opens the one-dial pairing key for it on each relay as for a nearby
+   offer, and answers with `sheprd-pair:` and base64url of JSON
+   (`control::pairing_link`): the token, the certificate authority's
+   SHA-256, at most three relays, the route, the full tunnel identity,
+   the computer's name, and its fleet hint. The QR keeps rotating every
+   minute beside it; a new link replaces the old.
+2. The person sends it to themselves (a chat, mail, a note) and pastes it
+   on **A** in Add Device > Nearby Sheprd, or pipes it to
+   `sheprd remote add-link`, which only fills that field.
+3. Pair starts `desktop-pair --link`, which reads the link as its first
+   line on stdin (`PairInput::Link`), never from its command line, and
+   answers `PairOutput::Linked` where Bluetooth would answer `Code`. The
+   fleet choice, the claim through the relays, TLS pinned to the
+   authority, and the save are the nearby path's own.
+4. The claim's answer carries the code B's dialog shows
+   (`auth::pairing::matching_code`, as for a QR), and A shows it with
+   `PairOutput::Claimed`. The person compares the two and clicks Allow
+   on B.
+
+The link is a secret for its two minutes, as the QR is while it shows:
+whoever holds it may claim, and B's dialog still names the claimant and
+shows its code before anything is granted. A link names at most three
+relays and stays under 4 KiB, the tunnel identity being most of it. B
+must listen on a relay; with none, Copy link says so.
 
 ### Measuring Bluetooth as a transport
 

@@ -79,8 +79,8 @@ const BODY_LIMIT: usize = 320 * 1024;
 
 /// What every request reads.
 pub(crate) struct State {
-    /// How APNs pushes for the iOS companion leave: the user's own key,
-    /// the push relay, or not at all.
+    /// How APNs pushes for the iOS companion leave: through the push relay,
+    /// or not at all.
     pub(crate) apns: crate::apns::Delivery,
     /// `Auth::apps`: origins of apps installed from other computers.
     pub(crate) apps: Arc<RwLock<Vec<String>>>,
@@ -121,6 +121,8 @@ pub(crate) struct State {
     pub(crate) pull_requests:
         tokio::sync::watch::Sender<Arc<crate::control::pull_requests::PullRequests>>,
     pub(crate) push: Option<Sender>,
+    /// How the last APNs push of each kind went.
+    pub(crate) pushes: crate::apns::Ledger,
     /// The relays this computer listens on, when any are set.
     pub(crate) relay: Option<Arc<crate::relay::Relays>>,
     /// How often each address may write a phone's error to the log.

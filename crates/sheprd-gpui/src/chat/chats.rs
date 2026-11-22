@@ -510,6 +510,12 @@ impl ChatPane {
         }
     }
 
+    /// How many rows the list has, and the last one's version: what changes
+    /// as entries come and grow.
+    pub(crate) fn revision(&self) -> (usize, Option<(EntryId, u64)>) {
+        (self.list_keys.len(), self.list_keys.last().copied())
+    }
+
     /// Redraws one entry, such as a thought folding open.
     pub(crate) fn remeasure(&self, id: EntryId) {
         if let Some(index) = self.list_keys.iter().position(|(entry, _)| *entry == id) {
@@ -591,6 +597,9 @@ pub(crate) struct Chats {
     pub(crate) agents: super::harnesses::Harnesses,
     /// New terminal agents `[chat] auto_convert` moves into chats.
     pub(crate) auto_convert: super::auto_convert::Tracker,
+    /// The brief of the chat being started by the call in progress; set
+    /// only around one start, which hands it to the program it launches.
+    pub(crate) brief: Option<super::brief::Brief>,
     /// The terminal agent moving into a chat, one at a time.
     pub(crate) converting: Option<super::convert::Job>,
     /// The herdr-core agent moving into a chat, one at a time with the above.

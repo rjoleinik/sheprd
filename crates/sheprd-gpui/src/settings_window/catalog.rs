@@ -340,6 +340,7 @@ pub(super) const CATALOG: &[Entry] = &[
     feature(Feature::AcpChats),
     #[cfg(feature = "mcp")]
     feature(Feature::Mcp),
+    feature(Feature::MoonframeWindow),
     feature(Feature::QaMenu),
     feature(Feature::SidebarHoverMenu),
     // keep-sorted end
@@ -642,6 +643,12 @@ pub(super) const CATALOG: &[Entry] = &[
         "remote-notifications",
         "settings-remote-notifications",
         "settings-remote-notifications-description",
+    ),
+    entry(
+        Section::RemoteControl,
+        "remote-push-relay",
+        "settings-push-relay-title",
+        "settings-push-relay-description",
     ),
     entry(
         Section::RemoteControl,

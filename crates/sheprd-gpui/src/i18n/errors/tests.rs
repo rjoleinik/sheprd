@@ -33,14 +33,18 @@ mod keymap;
 #[cfg(windows)]
 mod launch_at_login;
 mod link;
+mod link_input;
 mod listening_ports;
 mod local_ports;
 mod mods;
+mod naming;
 mod nearby;
 mod notification_mutes;
+mod one_shot;
 mod orchestrator;
 mod orchestrator_azure;
 mod overview;
+mod pairing_link;
 mod palette;
 mod pane_carry;
 mod pane_move;

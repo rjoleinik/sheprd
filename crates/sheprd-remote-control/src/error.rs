@@ -25,6 +25,8 @@ pub enum Error {
     Hub(#[from] crate::hub::Error),
     #[error("remote control I/O failed")]
     Io(#[from] io::Error),
+    #[error(transparent)]
+    PairingLink(#[from] crate::control::pairing_link::Error),
     #[cfg(feature = "server")]
     #[error(transparent)]
     Push(#[from] crate::push::Error),

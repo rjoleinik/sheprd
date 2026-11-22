@@ -44,7 +44,9 @@ impl SheprdWindow {
                     .child(fl!("devices-nearby-intro")),
             );
         body = match &setup.step {
-            Step::Looking => body.child(self.nearby_list(setup, cx)),
+            Step::Looking => body
+                .child(self.nearby_list(setup, cx))
+                .child(self.nearby_link(setup, cx)),
             Step::Connecting(found) | Step::Exchanging(found) => body.child(
                 div()
                     .debug_selector(|| "nearby-setup-status".into())
@@ -177,6 +179,16 @@ impl SheprdWindow {
     /// The code both screens show, and what to do on the other computer.
     fn nearby_code(&self, computer: &Found, code: &str, claimed: bool) -> Div {
         let theme = &self.theme;
+        // A link's code comes with the claim's answer.
+        if code.is_empty() {
+            return div()
+                .debug_selector(|| "nearby-setup-code".into())
+                .text_color(rgb(theme.muted))
+                .child(fl!(
+                    "devices-nearby-claiming",
+                    computer = computer.name.as_str()
+                ));
+        }
         let spaced = match code.split_at_checked(3) {
             Some((first, second)) => format!("{first} {second}"),
             None => code.to_owned(),

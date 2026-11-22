@@ -24,6 +24,12 @@ devices-nearby-no-herdr = { $computer } was paired, but Herdr does not answer th
 devices-nearby-no-answer = { $computer } was paired, but could not be reached through its relays. Check that Remote Login is on there and that its relays are listening.
 devices-nearby-save-failed = { $computer } was paired, but could not be saved: { $error }
 
+## A pairing link, for a computer on another network out of Bluetooth range.
+
+devices-nearby-link-intro = Out of Bluetooth range? On the other computer, open Remote control > Pair device, click Copy link, and paste the link here.
+devices-nearby-link-placeholder = Pairing link
+devices-nearby-link-pair = Pair
+
 ## The fleet, once both screens show the code. $computers and $hosts count
 ## the fleet's computers and the hosts it shares.
 

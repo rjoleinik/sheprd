@@ -3,11 +3,11 @@
 
 use crate::apns::{
     Priority, PushType,
-    alert::{MAX_OPTIONS, Sealed, push},
+    alert::{self, MAX_OPTIONS, Sealed, collapse_id, scope},
     payload::MAX_PAYLOAD,
     seal::{INFO, seal_with},
 };
-use crate::push::{Kind, Notification, Urgency};
+use crate::push::{EventId, Kind, Notification, Urgency};
 use aes_gcm::{Aes256Gcm, KeyInit as _, aead::Aead as _, aead::Payload};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use hkdf::Hkdf;
@@ -67,10 +67,14 @@ fn option(id: &str, kind: PermissionKind, name: &str) -> PermissionOption {
     }
 }
 
-fn question() -> Notification {
+/// The fixtures' event id, which the Swift tests read.
+pub(super) const EVENT: &str = "5d0c3e1f9a7b4c2d8e6f1a0b9c8d7e6f";
+
+pub(super) fn question() -> Notification {
     Notification {
         body: "Run `git push origin fix/mise`?\nherdr-gpui \u{b7} Fix mise discovery".to_owned(),
         clear: false,
+        event: EventId::fixed(EVENT),
         kind: Kind::Question,
         pane: "w1:p2".to_owned(),
         permission: Some(Permission {
@@ -93,6 +97,15 @@ fn question() -> Notification {
     }
 }
 
+/// `alert::push` to the test device, in its scope.
+pub(super) fn push(
+    sealed: Sealed,
+    tag: &str,
+    seal: impl Fn(&[u8]) -> crate::apns::Result<Vec<u8>>,
+) -> crate::apns::Result<crate::apns::Push> {
+    alert::push(sealed, &scope(&device().public_key()), tag, seal)
+}
+
 pub(super) fn json(bytes: &[u8]) -> Value {
     serde_json::from_slice(bytes).unwrap()
 }
@@ -107,14 +120,18 @@ fn a_question_shows_only_a_cover_to_apns() {
     let push = push(sealed.clone(), "chat-w1:p2", fixed_seal).unwrap();
     assert_eq!(push.push_type, PushType::Alert);
     assert_eq!(push.priority, Priority::High);
-    assert_eq!(push.collapse_id.as_deref(), Some("chat-w1:p2"));
+    let scope = scope(&device().public_key());
+    assert_eq!(
+        push.collapse_id.as_deref(),
+        Some(format!("{scope}-chat-w1:p2").as_str())
+    );
     let payload = json(&push.body);
     assert_eq!(
         payload["aps"],
         json!({
             "alert": {"title": "Sheprd", "body": "New activity"},
             "mutable-content": 1,
-            "thread-id": "w1:p2",
+            "thread-id": format!("{scope}/w1:p2"),
             "interruption-level": "time-sensitive",
             "sound": "default",
         })
@@ -186,6 +203,7 @@ fn a_clear_is_a_silent_background_push() {
     let notification = Notification {
         body: String::new(),
         clear: true,
+        event: EventId::new(),
         permission: None,
         title: String::new(),
         ..question()
@@ -229,6 +247,7 @@ fn a_long_body_is_shortened_to_fit_apns() {
 #[test]
 fn the_collapse_id_stays_within_apns_limit_on_a_character_boundary() {
     let tag = format!("chat-{}", "é".repeat(40));
+    let scope = scope(&device().public_key());
     let push = push(
         Sealed::new(&question(), COMPUTER.to_owned(), 1),
         &tag,
@@ -237,7 +256,18 @@ fn the_collapse_id_stays_within_apns_limit_on_a_character_boundary() {
     .unwrap();
     let id = push.collapse_id.unwrap();
     assert!(id.len() <= 64);
-    assert!(tag.starts_with(&id));
+    assert!(
+        id.starts_with(&format!("{scope}-")),
+        "in the pairing's scope"
+    );
+    assert!(!id.contains('é'), "a long tag is digested, not cut");
+    let other = format!("chat-{}a", "é".repeat(40));
+    assert_ne!(
+        collapse_id(&scope, &tag),
+        collapse_id(&scope, &other),
+        "tags sharing a long prefix stay apart"
+    );
+    assert_eq!(id, collapse_id(&scope, &tag), "stable");
 }
 
 /// `Fixtures/notify/alert.json`: the device key, the plaintext, and the

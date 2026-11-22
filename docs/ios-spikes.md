@@ -55,8 +55,8 @@ an iPhone on iOS 26, and this Mac.
 3. **Sealed notifications**
    - In the Notify tab, Register, allow notifications, and copy the key and
      the APNs token.
-   - Send `swift ios/Spikes/seal-push.swift KEY` as a sandbox push with the
-     daemon's APNs key (or the Push Notifications Console).
+   - Send `swift ios/Spikes/seal-push.swift KEY` as a sandbox push from the
+     Push Notifications Console.
    - The banner must show the decrypted title and body, which proves the
      extension can use the Secure Enclave key from the shared group.
 4. **Live Activity button**

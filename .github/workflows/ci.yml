@@ -294,10 +294,11 @@ jobs:
         if: matrix.features == 'all' && env.SCOPE != ''
         run: read -ra scope <<< "$SCOPE" && cargo test --locked "${scope[@]}" --all-features
       # The `moonframe` feature's Luau layout loads only at run time: load every
-      # module and report what fails, without a window.
+      # module and report what fails, without a window. The default build
+      # checks the copy compiled in; all features read the sources.
       - name: Check the Moonframe layout
-        if: matrix.features == 'all' && needs.commits.outputs.gpui == 'true'
-        run: cargo run --locked -p sheprd-gpui --all-features -- --check
+        if: needs.commits.outputs.gpui == 'true'
+        run: cargo run --locked -p sheprd-gpui ${{ matrix.features == 'all' && '--all-features' || '' }} -- --check
 
   # Match the other platforms' Rust checks without an extra optimized build,
   # in the merge queue, on main, and on pull requests that need every platform.
@@ -349,10 +350,10 @@ jobs:
         if: matrix.features == 'all'
         run: cargo test --locked --workspace --all-features
       # The `moonframe` feature's Luau layout loads only at run time: load every
-      # module and report what fails, without a window.
+      # module and report what fails, without a window. The default build
+      # checks the copy compiled in; all features read the sources.
       - name: Check the Moonframe layout
-        if: matrix.features == 'all'
-        run: cargo run --locked -p sheprd-gpui --all-features -- --check
+        run: cargo run --locked -p sheprd-gpui ${{ matrix.features == 'all' && '--all-features' || '' }} -- --check
 
   # The native GUI tests (`just test-gui`, `just test-sidebar`) on a real
   # Windows desktop session against a pinned, checksummed Herdr daemon in the
@@ -690,7 +691,8 @@ jobs:
       matrix:
         runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-15]
         exclude: ${{ fromJSON(needs.commits.outputs.full != 'true' && '[{"runner":"macos-15"},{"runner":"ubuntu-24.04-arm"}]' || '[]') }}
-    runs-on: ${{ matrix.runner }}
+    # Our own machines for members' macOS and ARM64 legs, as in the checks job.
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association))) && (matrix.runner == 'macos-15' && vars.CI_MACOS_RUNNER || matrix.runner == 'ubuntu-24.04-arm' && vars.CI_LINUX_ARM_RUNNER) || toJSON(matrix.runner)) }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -698,6 +700,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # Shares the runner's checkout with the build jobs: keep target/.
+          clean: ${{ runner.environment != 'self-hosted' }}
+      - name: Clean the self-hosted checkout but its build
+        if: runner.environment == 'self-hosted'
+        run: bash scripts/ci-clean-self-hosted.sh
       - run: rustup show
       # Linux builds its own architecture's static agent; macOS builds
       # both thin ones, the x86_64 one cross-compiled.
