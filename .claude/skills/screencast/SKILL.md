@@ -62,6 +62,14 @@ Copy `scripts/screencast/features/themes.json` to `features/NAME.json`:
   `["key", "cmd+shift+p"]`, `["type", "text"]`, `["slowtype", "text", 0.05]`,
   `["click", x, y]` in screenshot pixels, `["wait", seconds]`,
   `["repeat", n, [actions]]`.
+- `shortcut` on a segment whose narration says a macOS key (`"Command
+  Shift P"`): the Windows and Linux keys as the command catalog names them
+  (`"ctrl-shift-p"`). The video then shows "On Windows and Linux: Ctrl +
+  Shift + P" while the sentence plays. Look the keys up in
+  `crates/sheprd-commands/src/shortcuts/linux.rs` (Windows takes Linux's,
+  except where `windows.rs` overrides): they are rarely just Cmd for Ctrl.
+- `windows` (optional): the windows the feature can be shown in, when one
+  cannot draw it yet.
 - `teardown`: undo what the video changed, such as the theme.
 
 Narration: plain words a new user understands, the action before the result,

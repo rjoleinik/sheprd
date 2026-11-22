@@ -1,0 +1,157 @@
+{
+  "id": "agent-chat",
+  "feature": "ACP chats",
+  "title": {
+    "en": "Native agent chats",
+    "fr": "Des chats natifs avec vos agents"
+  },
+  "setup": [
+    [
+      "exec",
+      "cd ~/code/forecast && git reset -q --hard && git clean -qfd; sed -i '' 's/^theme = .*/theme = \"Default\"/' ~/.config/herdr/config-gpui.local.toml; sleep 1"
+    ],
+    [
+      "key",
+      "escape"
+    ],
+    [
+      "click",
+      1600,
+      1000
+    ],
+    [
+      "key",
+      "cmd+shift+n"
+    ],
+    [
+      "wait",
+      1.5
+    ],
+    [
+      "type",
+      "cd ~/code/forecast && clear"
+    ],
+    [
+      "key",
+      "return"
+    ],
+    [
+      "wait",
+      1.2
+    ]
+  ],
+  "segments": [
+    {
+      "say": {
+        "en": "Sheprd runs your coding agents in native chats, beside your terminal.",
+        "fr": "Sheprd fait tourner vos agents de code dans de vrais chats, à côté de votre terminal."
+      },
+      "actions": []
+    },
+    {
+      "say": {
+        "en": "Start one with the sparkle button, and ask for what you need.",
+        "fr": "Lancez-en un avec le bouton étincelle, et demandez ce qu'il vous faut."
+      },
+      "actions": [
+        [
+          "wait",
+          0.4
+        ],
+        [
+          "click",
+          880,
+          94
+        ],
+        [
+          "wait",
+          2.4
+        ],
+        [
+          "type",
+          "Add a --json flag to the forecast command"
+        ],
+        [
+          "wait",
+          0.6
+        ],
+        [
+          "key",
+          "return"
+        ]
+      ]
+    },
+    {
+      "say": {
+        "en": "The agent reads your code, makes the change and runs the tests, step by step.",
+        "fr": "L'agent lit votre code, fait la modification et lance les tests, étape par étape."
+      },
+      "actions": []
+    },
+    {
+      "say": {
+        "en": "Every step is a card: what it read, the lines it changed, and what the tests said.",
+        "fr": "Chaque étape est une carte : ce qu'il a lu, les lignes modifiées, et le résultat des tests."
+      },
+      "actions": []
+    },
+    {
+      "say": {
+        "en": "And the answer arrives formatted, ready for you to review.",
+        "fr": "Et la réponse arrive mise en forme, prête à être relue."
+      },
+      "actions": []
+    }
+  ],
+  "teardown": [
+    [
+      "key",
+      "escape"
+    ],
+    [
+      "key",
+      "escape"
+    ],
+    [
+      "click",
+      1600,
+      1000
+    ],
+    [
+      "key",
+      "cmd+shift+p"
+    ],
+    [
+      "wait",
+      0.8
+    ],
+    [
+      "type",
+      "close workspace"
+    ],
+    [
+      "wait",
+      0.8
+    ],
+    [
+      "key",
+      "return"
+    ],
+    [
+      "wait",
+      1.2
+    ],
+    [
+      "type",
+      "close"
+    ],
+    [
+      "key",
+      "return"
+    ],
+    [
+      "wait",
+      1.5
+    ]
+  ]
+}

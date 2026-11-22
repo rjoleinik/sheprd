@@ -29,6 +29,10 @@ Videos committed to the repository (the website's clips, for example) are
 stored with Git LFS (`.gitattributes`): run `git lfs install` once per machine
 before committing one.
 
+A segment that names a macOS shortcut also carries `shortcut`, the Windows
+and Linux keys (`"ctrl-shift-p"`, from `crates/sheprd-commands`), shown on
+screen in the narration's language while it plays.
+
 ## Voices
 
 Chosen by listening to tryouts on 2026-11-22. The model is `eleven_v4`, with

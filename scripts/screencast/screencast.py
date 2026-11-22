@@ -108,7 +108,16 @@ def speak(spec, providers, langs, work, cache):
 # --- recording -------------------------------------------------------------
 
 
+# The window being recorded, for steps that differ between windows.
+WINDOW = None
+
+
 def act(name, action):
+    """Run one step of a feature file in the machine.
+
+    `click` takes x, y, or a {window: [x, y]} map when the windows lay the
+    target out differently; `exec` runs a shell command in the machine as the
+    logged-in user, for setup the interface cannot do reliably."""
     kind, *args = action
     if kind == "wait":
         time.sleep(args[0])
@@ -121,7 +130,10 @@ def act(name, action):
             machine(name, "type", ch)
             time.sleep(args[1])
     elif kind == "click":
-        machine(name, "click", str(args[0]), str(args[1]))
+        x, y = args[0][WINDOW] if isinstance(args[0], dict) else args
+        machine(name, "click", str(x), str(y))
+    elif kind == "exec":
+        machine(name, "exec", "--", "sh", "-c", args[0])
     elif kind == "repeat":
         for _ in range(args[0]):
             for inner in args[1]:
@@ -261,6 +273,29 @@ def title_card(text, lang, path):
         "-border", "40x24", str(path))
 
 
+# How a segment's `shortcut` (the other platforms' keys, as the command catalog
+# names them: "ctrl-shift-p") is labelled while the narration says the macOS
+# one. Windows takes Linux's keys (crates/sheprd-commands/src/shortcuts).
+SHORTCUT_PREFIX = {"en": "On Windows and Linux:", "fr": "Sous Windows et Linux :"}
+KEY_NAMES = {
+    "en": {"ctrl": "Ctrl", "shift": "Shift", "alt": "Alt"},
+    "fr": {"ctrl": "Ctrl", "shift": "Maj", "alt": "Alt"},
+}
+
+
+def shortcut_label(keys, lang, path):
+    names = KEY_NAMES.get(lang, KEY_NAMES["en"])
+    keys = " + ".join(names.get(k, k.upper()) for k in keys.split("-"))
+    prefix = SHORTCUT_PREFIX.get(lang, SHORTCUT_PREFIX["en"])
+    run("magick", "-background", "none", "-font", font(lang),
+        "(", "-fill", "#c8c8d0", "-pointsize", "34", f"label:{prefix}  ", ")",
+        "(", "-fill", "white", "-pointsize", "44", f"label:{keys}", ")",
+        "-gravity", "center", "+append",
+        "-bordercolor", "none", "-border", "34x18",
+        "(", "+clone", "-alpha", "off", "-fill", "#15161ce6", "-colorize", "100", ")",
+        "+swap", "-compose", "over", "-composite", str(path))
+
+
 def srt_time(t):
     ms = int(round(t * 1000))
     return f"{ms // 3600000:02}:{ms // 60000 % 60:02}:{ms // 1000 % 60:02},{ms % 1000:03}"
@@ -295,18 +330,26 @@ def render(spec, provider, lang, starts, work, window, out, captions=False, crop
         length = duration(voice_file(work, provider, lang, i))
         start, end = starts[i], starts[i] + length + GAP
         srt.append(f"{i + 1}\n{srt_time(start)} --> {srt_time(end)}\n{seg['say'][lang]}\n")
-        if not captions:
-            continue
-        cap = d / f"cap{i}.png"
-        caption(seg["say"][lang], lang, cap, 46, WIDTH - 360)
-        inputs += ["-loop", "1", "-i", str(cap)]
-        n = 2 + burned
-        burned += 1
-        filters.append(
-            f"[{last}][{n}:v]overlay=(W-w)/2:H-h-70:shortest=1:"
-            f"enable='between(t,{start:.3f},{end:.3f})'[v{n}]"
-        )
-        last = f"v{n}"
+        overlays = []
+        if captions:
+            cap = d / f"cap{i}.png"
+            caption(seg["say"][lang], lang, cap, 46, WIDTH - 360)
+            overlays.append((cap, "H-h-70"))
+        if seg.get("shortcut"):
+            # Always shown: viewers on Windows and Linux need their own keys
+            # whether or not the narration is captioned.
+            key = d / f"key{i}.png"
+            shortcut_label(seg["shortcut"], lang, key)
+            overlays.append((key, "H-h-190" if captions else "H-h-70"))
+        for image, y in overlays:
+            inputs += ["-loop", "1", "-i", str(image)]
+            n = 2 + burned
+            burned += 1
+            filters.append(
+                f"[{last}][{n}:v]overlay=(W-w)/2:{y}:shortest=1:"
+                f"enable='between(t,{start:.3f},{end:.3f})'[v{n}]"
+            )
+            last = f"v{n}"
     base = 2 + burned
     for i in range(len(spec["segments"])):
         inputs += ["-i", str(voice_file(work, provider, lang, i))]
@@ -379,7 +422,14 @@ def main():
     unknown = [w for w in windows if w not in WINDOWS]
     if unknown:
         sys.exit(f"unknown window {', '.join(unknown)}: {', '.join(WINDOWS)}")
+    # A feature may name the windows it can be shown in, such as one whose
+    # page only draws in some.
+    windows = [w for w in windows if w in spec.get("windows", WINDOWS)]
+    if not windows:
+        sys.exit(f"{spec['id']} is recorded in {', '.join(spec['windows'])} only")
+    global WINDOW
     for window in windows:
+        WINDOW = window
         if a.skip_record:
             saved = json.loads((work / window / "timing.json").read_text())
             fits(saved["slots"], slots, window)
