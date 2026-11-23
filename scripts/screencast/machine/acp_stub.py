@@ -4,7 +4,8 @@ Protocol over stdio and, whatever it is asked, streams one rehearsed turn that
 reads a file, edits it for real, and runs the tests. Never a real agent."""
 import json, os, sys, time
 
-REPO = os.path.expanduser("~/code/forecast")
+# The checkout the chat runs in (a worktree of it, too), else the demo repo.
+REPO = os.getcwd() if os.path.exists("forecast.py") else os.path.expanduser("~/code/forecast")
 FILE = os.path.join(REPO, "forecast.py")
 OLD = '''def show(days):
     for day in days:

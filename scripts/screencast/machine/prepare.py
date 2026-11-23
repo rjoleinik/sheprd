@@ -50,6 +50,18 @@ def push(name, local, remote):
                 data[i:i + CHUNK], remote)
 
 
+def install_hover(name):
+    """Builds hover.c here (the machine may have no compiler) and installs it
+    as ~/.local/bin/screencast-hover, signed for the machine."""
+    with tempfile.TemporaryDirectory() as tmp:
+        binary = Path(tmp) / "hover"
+        subprocess.run(["/usr/bin/clang", "-O2", "-arch", "arm64", "-o", str(binary),
+                        str(HERE / "hover.c"), "-framework", "ApplicationServices"], check=True)
+        push(name, binary, "/tmp/screencast-hover")
+    machine(name, "sh", "-c", "install -m 755 /tmp/screencast-hover ~/.local/bin/screencast-hover"
+            " && codesign -f -s - ~/.local/bin/screencast-hover")
+
+
 def install_app(name, app):
     with tempfile.TemporaryDirectory() as tmp:
         archive = Path(tmp) / "Sheprd.zip"
@@ -92,6 +104,7 @@ def main():
     for f in ("setup.sh", "acp_stub.py", "forecast.py", "days.json", "test_forecast.py"):
         push(a.machine, HERE / f, f"{DEST}/{f}")
     print(machine(a.machine, "sh", f"{DEST}/setup.sh", timeout=600).strip())
+    install_hover(a.machine)
     if a.app:
         install_app(a.machine, a.app)
     if a.sign_ins:

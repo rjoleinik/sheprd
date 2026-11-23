@@ -55,7 +55,9 @@ WARMUP = 12.0
 GAP = 0.5  # silence after each segment's voice
 TAIL = 1.5  # seconds after the last segment
 CHUNK = 45000  # bytes per pulled chunk; base64 of it stays under the exec output cap
-APP = "~/Apps/Sheprd.app"  # where the machine keeps the build being recorded
+APP = "~/Apps/Sheprd.app"
+# Moves the pointer in the machine (machine/hover.c, installed by prepare.py).
+HOVER = "/Users/admin/.local/bin/screencast-hover"  # where the machine keeps the build being recorded
 
 # Each window the app can open, as the arguments that open it and the share of
 # the guest screen's height, from the top, the maximized window fills (the
@@ -116,7 +118,7 @@ WINDOW = None
 def act(name, action):
     """Run one step of a feature file in the machine.
 
-    `click` takes x, y, or a {window: [x, y]} map when the windows lay the
+    `click` and `hover` take x, y, or a {window: [x, y]} map when the windows lay the
     target out differently; `exec` runs a shell command in the machine as the
     logged-in user, for setup the interface cannot do reliably."""
     kind, *args = action
@@ -131,8 +133,21 @@ def act(name, action):
             machine(name, "type", ch)
             time.sleep(args[1])
     elif kind == "click":
+        # ["click", x, y] or ["click", x, y, "right"]; a {window: [x, y]} map
+        # stands for x, y where the windows differ.
+        point, extra = (args[0][WINDOW], args[1:]) if isinstance(args[0], dict) else (args[:2], args[2:])
+        x, y = point
+        # Point first and let the app redraw under the pointer: Sheprd
+        # Agent presses 8 ms after moving, which a busy machine has not
+        # redrawn in, so the press would land on the old hover.
+        machine(name, "exec", "--", HOVER, str(x / 2), str(y / 2))
+        time.sleep(0.2)
+        machine(name, "click", str(x), str(y), *(["--right"] if "right" in extra else []))
+    elif kind == "hover":
+        # Point at something without clicking: a theme previews, a tooltip
+        # shows, or the viewer's eye follows the pointer there.
         x, y = args[0][WINDOW] if isinstance(args[0], dict) else args
-        machine(name, "click", str(x), str(y))
+        machine(name, "exec", "--", HOVER, str(x / 2), str(y / 2))
     elif kind == "exec":
         machine(name, "exec", "--", "sh", "-c", args[0])
     elif kind == "repeat":

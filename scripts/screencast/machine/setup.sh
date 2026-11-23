@@ -55,7 +55,9 @@ fi
 # would show the signed-in accounts' limits.
 config="$HOME/.config/herdr"
 mkdir -p "$config"
-cat > "$config/config-gpui.local.toml" <<'EOF'
+# Kept as screencast.toml too: a video that changes settings copies it back
+# over config-gpui.local.toml in its teardown.
+cat > "$config/screencast.toml" <<'EOF'
 # Screencast machine (scripts/screencast/machine/setup.sh). Saved changes reload.
 layout = "comfortable-rounded"
 theme = "Default"
@@ -66,5 +68,10 @@ PATH = "/Users/admin/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 [usage]
 show = false
+
+# The palette's Projects list, which a video's setup opens the demo repo from.
+[palette]
+project_roots = ["~/code"]
 EOF
+cp "$config/screencast.toml" "$config/config-gpui.local.toml"
 echo "machine ready: $(~/.local/bin/claude --version 2>/dev/null | head -1), $(~/.local/bin/codex --version 2>/dev/null)"
