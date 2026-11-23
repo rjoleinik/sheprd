@@ -1,0 +1,43 @@
+1
+00:00:01,000 --> 00:00:08,717
+This is my release workspace in Sheprd. I'd like a reminder down here in the status bar, where I can see it while I'm working.
+
+2
+00:00:08,717 --> 00:00:18,357
+Moonframe is the toolkit behind this window. It lets you change the interface while the app is running, all the way from a label to a little app of your own.
+
+3
+00:00:18,367 --> 00:00:29,367
+The window is native. Rust runs the application and its terminal and chat views. The layout around those views is written in Luau, a language in the Lua family.
+
+4
+00:00:29,367 --> 00:00:41,167
+The sidebar, the activity icons and the status bar each have a layout you can edit. You can move existing controls, add a widget, or give a new tool its own place in the window.
+
+5
+00:00:41,167 --> 00:00:50,883
+Let's make that reminder. The sparkles just above Settings open Make it yours. This is where you talk to an agent about the interface you're looking at.
+
+6
+00:00:50,883 --> 00:01:01,317
+I'll choose Codex and describe the change in plain English. Add a small amber Release day label to the left of my status bar. Keep the existing items.
+
+7
+00:01:01,317 --> 00:01:11,597
+Under Feedback and fixes, you can follow the agent as it reads the built-in layout and edits your personal copy. In this build, its final check reports an error.
+
+8
+00:01:11,600 --> 00:01:22,280
+Let's look at the window itself. There's Release day, in amber, alongside the usual status items. My terminal still shows the four tests I ran before the edit.
+
+9
+00:01:22,283 --> 00:01:32,317
+Here's a bigger example. This layout adds a release checklist, a counter in the status bar, and an icon in the activity bar that opens the checklist.
+
+10
+00:01:32,317 --> 00:01:42,277
+I'll open it and check off the first task. Watch the counter at the bottom change from zero of three to one of three. Both controls share the same state.
+
+11
+00:01:42,283 --> 00:01:51,363
+Back to workspace brings me straight to my terminal. To change something in your own window, start with the sparkles and tell the agent what you'd like to see.
