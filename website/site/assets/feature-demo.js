@@ -14,17 +14,20 @@ if (demo instanceof HTMLVideoElement) {
       demo.focus();
     }
   };
-  // Space plays and pauses, as on video sites, unless a control or field
-  // has the keyboard (the player itself already handles its own keys).
-  document.addEventListener('keydown', (event) => {
+  // Space plays and pauses the demo anywhere on the page, as on video sites,
+  // instead of scrolling it: also while the video, a chapter, or a window or
+  // language button has the keyboard. Only typing in a field keeps Space, and
+  // Enter still presses a focused button. Listening while capturing runs
+  // before the browser's own handling, so the video never toggles twice.
+  window.addEventListener('keydown', (event) => {
     if (event.key !== ' ' || event.metaKey || event.ctrlKey || event.altKey) return;
     const target = event.target;
     if (target instanceof HTMLElement
-        && (target === demo || target.isContentEditable
-            || ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON', 'A', 'SUMMARY'].includes(target.tagName))) return;
+        && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
     event.preventDefault();
+    event.stopPropagation();
     if (demo.paused) play(); else demo.pause();
-  });
+  }, { capture: true });
   document.querySelectorAll('[data-seek]').forEach((button) => {
     button.addEventListener('click', () => {
       demo.currentTime = Number(button.dataset.seek);
