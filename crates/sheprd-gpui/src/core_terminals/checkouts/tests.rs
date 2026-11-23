@@ -1,4 +1,4 @@
-use super::*;
+use crate::core_terminals::checkouts::*;
 
 #[test]
 fn folders_are_asked_once_then_again_when_stale() {
@@ -11,7 +11,12 @@ fn folders_are_asked_once_then_again_when_stale() {
     assert_eq!(answers.len(), 1);
     // A finished batch lands on the next poll.
     let (send, receive) = mpsc::sync_channel(1);
-    send.send(vec![(folder.clone(), None)]).unwrap();
+    send.send(vec![Answer {
+        cwd: folder.clone(),
+        identity: None,
+        upstream: None,
+    }])
+    .unwrap();
     checkouts.asking = Some(receive);
     assert!(checkouts.poll(vec![folder.clone()], now));
     assert!(

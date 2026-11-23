@@ -204,6 +204,7 @@ fn an_edited_or_removed_device_drops_its_core_hub(cx: &mut gpui::TestAppContext)
             // A terminal the old machine started is still on its way.
             view.core_terminals.start_for_test(
                 crate::core_terminals::Purpose::Tab {
+                    group: None,
                     scope: scope(),
                     workspace: "w1".into(),
                 },
@@ -264,6 +265,7 @@ fn a_missing_core_never_opens_a_herdr_tab_in_another_workspace(cx: &mut gpui::Te
             // Asked for in a workspace the user has since left.
             view.start_core_program(
                 crate::core_terminals::Purpose::Tab {
+                    group: None,
                     scope: scope(),
                     workspace: "w-left".into(),
                 },

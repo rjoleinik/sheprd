@@ -17,12 +17,13 @@ const IDLE: Duration = Duration::from_secs(20);
 /// than shared relays refuses the subcommand and prints nothing, as a
 /// machine without the program does. Standard input is drained so the
 /// sender is never left writing to no one.
-pub(crate) const SCRIPT: &str = "\
-program=$(command -v sheprd-remote-control || command -v herdr-remote-control || true)
-[ -n \"$program\" ] || program=\"$HOME/.local/bin/sheprd-remote-control\"
+pub(crate) const SCRIPT: &str = concat!(
+    crate::remote::program::find_program!(),
+    "\
 if [ -x \"$program\" ]; then \"$program\" relays --offer 2>/dev/null || true; fi
 cat >/dev/null
-";
+"
+);
 
 /// Offers `offer` to the machine's daemon. Returns whether it took them;
 /// `false` when the machine has nothing that keeps relays.

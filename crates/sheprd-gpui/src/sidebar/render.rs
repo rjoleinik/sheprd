@@ -10,6 +10,7 @@ use super::{
     cell::{Cell, Fold, RowContext, RowData, WorkspaceRow, layout_for},
     label_text, layout, line_height,
     reorder::{self, Plan},
+    repository,
     row::{RowIcon, RowLift, RowTree},
     scaled, sidebar_width, sticky,
     tokens::{self, SpaceContext},
@@ -55,6 +56,7 @@ impl SheprdWindow {
         let font = &self.config.sidebar;
         let spaces_custom = self.config.usage.inline
             && self.config.sidebar_layout.spaces != crate::config::SpaceLayout::default();
+        let repository_gap = repository::gap(&self.config);
         let theme = &self.theme;
         // The field is the heading, so it takes the heading's face.
         self.sidebar_search.input.update(cx, |input, cx| {
@@ -257,10 +259,8 @@ impl SheprdWindow {
                             self.sidebar_scroll[0].bounds_for_item(base + position),
                         ) {
                             heights[unit] += f32::from(bounds.size.height);
-                            if spaces_custom && !entry.1 {
-                                heights[unit] +=
-                                    f32::from(self.config.sidebar_layout.spaces.row_gap)
-                                        * line_height(font);
+                            if !entry.1 {
+                                heights[unit] += repository_gap;
                             }
                         }
                     }
@@ -353,16 +353,9 @@ impl SheprdWindow {
                     } else {
                         Vec::new()
                     };
-                    let gap = if spaces_custom {
-                        match previous_indented.replace(indented) {
-                            Some(_) if !indented => {
-                                f32::from(self.config.sidebar_layout.spaces.row_gap)
-                                    * line_height(font)
-                            }
-                            _ => 0.,
-                        }
-                    } else {
-                        0.
+                    let gap = match previous_indented.replace(indented) {
+                        Some(_) if !indented => repository_gap,
+                        _ => 0.,
                     };
                     let removing_row = selected
                         && self.live.status.is_connected()
@@ -446,6 +439,11 @@ impl SheprdWindow {
                             workspace,
                             label,
                             tree,
+                            repository: self
+                                .config
+                                .show_repository_icons
+                                .then(|| repository::name(workspace))
+                                .flatten(),
                             // A child hangs from the main checkout on the guide
                             // lines; one standing alone has no line to hang from,
                             // so it takes the branch glyph where the owner's
@@ -461,11 +459,13 @@ impl SheprdWindow {
                                 RowIcon::Blank
                             } else {
                                 let target = &endpoint.connection.target;
-                                self.avatars
+                                let image = self
+                                    .avatars
                                     .as_ref()
                                     .zip(Checkout::of(endpoint_index == 0, target, workspace))
-                                    .and_then(|(avatars, checkout)| avatars.image(checkout))
-                                    .map_or(RowIcon::Mark, RowIcon::Avatar)
+                                    .and_then(|(avatars, checkout)| avatars.image(checkout));
+                                let name = repository::name(workspace).unwrap_or(label);
+                                RowIcon::repository(name, image, theme)
                             },
                             fold,
                             grouped,
@@ -494,6 +494,10 @@ impl SheprdWindow {
                         (false, false) => RowLift::Resting,
                     })
                     .row()
+                    .when(
+                        self.config.layout.mode == crate::config::LayoutMode::Minimal && gap > 0.,
+                        |row| row.child(repository::separator(label, gap, content_x, theme)),
+                    )
                     .on_mouse_down(
                         MouseButton::Right,
                         cx.listener(move |this, event: &MouseDownEvent, window, cx| {

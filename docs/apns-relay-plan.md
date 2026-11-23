@@ -291,7 +291,7 @@ decide what the lock screen shows, which matters however the push travels:
 | Question, its buttons, failure message | With Excerpt | No |
 
 Detailed is the default. Sheprd has `live_activities` in `[remote]`, and the iOS
-app has Keep Generic in Settings, sent as `activity_detail`. A phone can ask for
+app's Private Live Activity style in Settings is sent as `activity_detail`. A phone can ask for
 less than its computer allows, never more. Buttons go with the question, because
 nobody should answer from the lock screen without seeing what they are answering.
 

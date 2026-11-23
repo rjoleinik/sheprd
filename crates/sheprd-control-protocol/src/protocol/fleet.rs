@@ -24,6 +24,20 @@ pub enum FleetOp {
     /// machine this Sheprd connects to, by its device ID or name; the user
     /// confirms there.
     Scrub { machine: String },
+    /// Shows Settings > Fleet asking to invite a computer this Sheprd
+    /// reaches that is in no fleet, by its device ID or name, or, with
+    /// none named, offering to invite all of them; the user confirms there.
+    Invite {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        machine: Option<String>,
+    },
+    /// Shows Settings > Fleet offering to join the fleet a computer this
+    /// Sheprd reaches is a member of, while this computer is in none,
+    /// optionally named by its device ID or name; the user confirms there.
+    Join {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        machine: Option<String>,
+    },
 }
 
 impl FleetOp {
@@ -31,7 +45,7 @@ impl FleetOp {
         match self {
             // A removal reads the daemon's view before naming its target.
             Self::Status | Self::Remove { .. } | Self::RemoveHost { .. } => DAEMON_WAIT_SECONDS,
-            Self::Open | Self::Scrub { .. } => 0,
+            Self::Open | Self::Scrub { .. } | Self::Invite { .. } | Self::Join { .. } => 0,
         }
     }
 }

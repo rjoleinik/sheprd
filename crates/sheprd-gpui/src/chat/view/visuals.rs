@@ -75,7 +75,14 @@ impl SheprdWindow {
                     Part::Rich(blocks) => {
                         match self.chat_text_scope(pane_id, entry, Region::Body(index)) {
                             Some(scope) => self
-                                .render_chat_rich(pane_id, blocks, visuals, &scope, voice, cx)
+                                .render_chat_rich(
+                                    (pane_id, crate::chat::view::rich::links::Mode::Configured),
+                                    blocks,
+                                    visuals,
+                                    &scope,
+                                    voice,
+                                    cx,
+                                )
                                 .into_any_element(),
                             None => div().into_any_element(),
                         }
@@ -106,6 +113,27 @@ impl SheprdWindow {
                     }
                     Part::Html { code } => {
                         self.render_chat_html(pane_id, entry, index, code, visuals, cx)
+                    }
+                    Part::File {
+                        id,
+                        blocks,
+                        destination,
+                    } => {
+                        let content =
+                            match self.chat_text_scope(pane_id, entry, Region::Body(index)) {
+                                Some(scope) => self
+                                    .render_chat_rich(
+                                        (pane_id, crate::chat::view::rich::links::Mode::Attachment),
+                                        blocks,
+                                        visuals,
+                                        &scope,
+                                        voice,
+                                        cx,
+                                    )
+                                    .into_any_element(),
+                                None => div().into_any_element(),
+                            };
+                        self.render_chat_file(pane_id, (*id, destination), content, visuals, cx)
                     }
                     Part::Picture { alt } => self.render_chat_picture_caption(alt),
                     Part::Remote { id, url, alt } => self.render_chat_remote_picture(

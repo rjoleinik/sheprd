@@ -88,7 +88,7 @@ fn named(name: String, incoming: socket::Incoming) -> Option<(Name, socket::Inco
 }
 
 #[cfg(target_os = "macos")]
-fn info(listing: Listing) -> MachineInfo {
+fn info(listing: Listing, cx: &mut App) -> MachineInfo {
     let state = match (machine::status(&listing.name), listing.saved) {
         (Status::Running, _) => MachineState::Running,
         (Status::Starting, _) => MachineState::Starting,
@@ -98,6 +98,7 @@ fn info(listing: Listing) -> MachineInfo {
         (Status::Stopped, false) => MachineState::Stopped,
     };
     MachineInfo {
+        reservation: machine_claims::describe(listing.name.as_str(), cx),
         name: listing.name.to_string(),
         state,
         cpus: listing.settings.cpus,
@@ -117,10 +118,14 @@ pub(super) fn list(incoming: socket::Incoming, cx: &mut App) {
     let read = cx.background_executor().spawn(async { machine::list() });
     cx.spawn(async move |cx: &mut gpui::AsyncApp| {
         let listed = read.await;
-        let response = cx.update(|_| match listed {
+        let response = cx.update(|cx| match listed {
             Ok(listings) => Response::Tab {
                 reply: Reply::Machines {
-                    machines: listings.into_iter().map(info).collect(),
+                    capacity: Some(machine::capacity()),
+                    machines: listings
+                        .into_iter()
+                        .map(|listing| info(listing, cx))
+                        .collect(),
                 },
             },
             Err(error) => failed(&error),

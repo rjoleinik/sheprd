@@ -29,6 +29,7 @@ pub(super) fn start(text: &str) -> Live {
         },
         pane: "w1-p3".to_owned(),
         state: ContentState {
+            detail: Default::default(),
             options: Vec::new(),
             permission: Some(7),
             phase: Phase::Question,

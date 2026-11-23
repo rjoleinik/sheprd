@@ -89,11 +89,13 @@ impl Live {
     /// the answer buttons; `false` when nothing is left worth cutting.
     fn shorten(&mut self) -> bool {
         let state = &mut self.state;
-        if !state.previous.is_empty() {
+        if !state.previous.is_empty() || !state.detail.previous_activities.is_empty() {
             state.previous.clear();
+            state.detail.previous_activities.clear();
             return true;
         }
         let mut texts = vec![&mut state.step];
+        texts.extend(state.detail.activity.as_mut());
         texts.extend(state.question.as_mut());
         texts.extend(state.summary.as_mut());
         if let Event::Start { attributes, .. } = &mut self.event {

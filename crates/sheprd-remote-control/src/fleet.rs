@@ -486,6 +486,13 @@ impl Fleet {
     /// goes through here: sync, invitations, shares, and `fleet apply`
     /// with no daemon.
     pub(crate) fn apply(&self, apply: &sync::Apply, now_ms: u64) -> Result<sync::Applied> {
+        // Asked what it holds, naming no fleet and handing nothing, a
+        // computer in no fleet says so with an empty fleet rather than
+        // failing: Sheprd asking over SSH then tells it from a machine
+        // without this program, and may invite it.
+        if apply.fleet.is_none() && apply.ops.is_empty() && self.inner().log.is_none() {
+            return Ok(sync::Applied::default());
+        }
         if let Some(named) = &apply.fleet
             && let Some(log) = &self.inner().log
             && *named != log.fleet().to_string()
@@ -784,6 +791,24 @@ pub fn run_ask(state_dir: &Path, ask: sync::Ask) -> Result<sync::Answer> {
         Response::Error { message, .. } => Err(Error::Daemon(message)),
         _ => Err(Error::Daemon("an unexpected answer".to_owned())), // i18n: data
     }
+}
+
+/// `fleet admit`, run over SSH by the Sheprd of a computer in no fleet
+/// that reaches this one and joins its fleet: the person reaches this
+/// account, which proves they control it, as an invitation from here over
+/// SSH does. Only a computer joins this way; a phone joins by pairing,
+/// with a person's approval on a member. Blocking.
+pub fn run_admit(state_dir: &Path, admission: sync::Admission) -> Result<sync::Answer> {
+    let bundle = crate::control::fleet::Bundle::from_bytes(&sync::bytes(&admission.bundle)?)?;
+    if bundle.kind != crate::control::fleet::Kind::Computer {
+        return Err(Error::NotComputer);
+    }
+    let ask = sync::Ask::Admit {
+        bundle: admission.bundle,
+        signature: admission.signature,
+        method: crate::control::fleet::Method::Ssh,
+    };
+    run_ask(state_dir, ask)
 }
 
 /// `fleet scrub`, run over SSH or by hand: asks the running daemon to

@@ -8,6 +8,7 @@ use sheprd_chat_protocol::{
 };
 
 mod buttons;
+mod detail;
 
 const NOW_MS: u64 = 1_800_000_000_000;
 const STARTED_MS: u64 = 1_799_999_990_000;

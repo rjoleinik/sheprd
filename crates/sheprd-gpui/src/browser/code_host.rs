@@ -3,7 +3,7 @@
 //! VS Code, that host's own (see [`crate::code_server::host`]), which opens
 //! the workspace's folder there. Each server keeps its own address, answer,
 //! and pages: moving between workspaces on different hosts disturbs neither.
-use super::{Scope, code::CodeServer, view::scope};
+use crate::browser::{Scope, code::CodeServer, view::scope};
 use crate::{
     SheprdWindow,
     code_server::{Hosts, Launcher, Startup},
@@ -85,12 +85,11 @@ impl SheprdWindow {
         match host {
             CodeHost::Local => &mut browser.code_server,
             CodeHost::Ssh(target) => {
-                let (probe, started_probe) =
-                    (browser.code_server.probe, browser.code_server.started_probe);
+                let probe = browser.code_server.probe;
                 browser
                     .host_code_servers
                     .entry(target.clone())
-                    .or_insert_with(|| CodeServer::asked_by(probe, started_probe))
+                    .or_insert_with(|| CodeServer::asked_by(probe))
             }
         }
     }
@@ -128,6 +127,6 @@ impl SheprdWindow {
     #[cfg(any(target_os = "macos", windows))]
     pub(super) fn close_code_pages(&mut self, host: &CodeHost, cx: &App) {
         let serves = self.code_scopes(host, cx);
-        self.close_editor_pages_in(super::Editor::VsCode, serves, cx);
+        self.close_editor_pages_in(crate::browser::Editor::VsCode, serves, cx);
     }
 }

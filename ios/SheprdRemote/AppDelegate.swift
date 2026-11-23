@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, @preconcurrency UNUser
     ) -> Bool {
         AppLock.migrate()
         PushRelaySetting.applyDefault()
+        LiveActivityStyleSetting.migrate()
         AppModel.current = model
         UNUserNotificationCenter.current().delegate = self
         Task { await NotificationCategories.register(.finished) }

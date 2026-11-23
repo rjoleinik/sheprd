@@ -173,15 +173,18 @@ impl<'a> Line<'a> {
         self.push(div(), Content::Shell, 0., Fit::Fill)
     }
 
-    fn widths(&self) -> Vec<f32> {
-        let gaps = self.gap * self.pieces.len().saturating_sub(1) as f32;
+    fn widths(&self) -> (Vec<f32>, f32) {
+        let gap_count = self.pieces.len().saturating_sub(1) as f32;
         let fixed: f32 = self
             .pieces
             .iter()
             .filter(|piece| matches!(piece.fit, Fit::Fixed))
             .map(|piece| piece.natural)
             .sum();
-        let mut free = (self.width - gaps - fixed).max(0.);
+        let gap = self
+            .gap
+            .min((self.width - fixed).max(0.) / gap_count.max(1.));
+        let mut free = (self.width - gap * gap_count - fixed).max(0.);
         let reserved = |fit: fn(Fit) -> bool| -> f32 {
             self.pieces
                 .iter()
@@ -230,17 +233,17 @@ impl<'a> Line<'a> {
                 }
             }
         }
-        widths
+        (widths, gap)
     }
 
     pub(super) fn into_div(self) -> Div {
-        let widths = self.widths();
+        let (widths, gap) = self.widths();
         let line = div()
             .w(px(self.width))
             .flex_none()
             .row()
             .items_center()
-            .gap(px(self.gap))
+            .gap(px(gap))
             .overflow_hidden();
         self.pieces
             .into_iter()

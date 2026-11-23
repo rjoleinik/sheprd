@@ -13,7 +13,7 @@ use std::ops::Range;
 mod accents;
 mod code;
 mod inline;
-mod links;
+pub(super) mod links;
 mod rhythm;
 
 use super::{
@@ -45,14 +45,16 @@ struct RichContext<'a, 'b, 'c> {
 impl SheprdWindow {
     pub(super) fn render_chat_rich(
         &self,
-        pane_id: &str,
+        routing: (&str, links::Mode),
         blocks: &[Block],
         visuals: &Visuals,
         selection: &Scope<'_>,
         voice: Voice,
         cx: &mut Context<Self>,
     ) -> Div {
-        let links = Links::new(self, pane_id, cx);
+        let (pane_id, mode) = routing;
+        let mut links = Links::new(self, pane_id, cx);
+        links.mode = mode;
         let look = self.chat_look();
         let layout = layout_for(self.config.chat.layout);
         let size = voice.size;
@@ -197,9 +199,15 @@ impl SheprdWindow {
         // Shape prose as a single run sequence: preserves kerning, wrapping,
         // links and inline-code fonts without allocating one element per word.
         if let Some(Prose { text, spans }) = prose_spans(&content) {
-            let highlights = spans
-                .iter()
-                .map(|(range, style)| (range.clone(), self.rich_style(style, context.accents)));
+            let highlights = spans.iter().map(|(range, style)| {
+                (
+                    range.clone(),
+                    context
+                        .links
+                        .mode
+                        .highlight(self.rich_style(style, context.accents)),
+                )
+            });
             let fonts = spans
                 .iter()
                 .filter(|(_, style)| style.code)
@@ -264,7 +272,13 @@ impl SheprdWindow {
                             .as_ref()
                             .map(|fragment| fragment.range(offset..offset + word.len()));
                         offset += word.len();
-                        let marks = [(0..word.len(), self.rich_style(style, context.accents))];
+                        let marks = [(
+                            0..word.len(),
+                            context
+                                .links
+                                .mode
+                                .highlight(self.rich_style(style, context.accents)),
+                        )];
                         let styled =
                             styled_text(selected.as_ref(), word.to_owned(), marks, &self.theme);
                         item = selectable(

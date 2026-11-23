@@ -10,7 +10,7 @@
 //! [`under_en_xa`] and checking each with [`assert_translated`].
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use super::toggle_pseudo;
+use crate::i18n::toggle_pseudo;
 use gpui::{
     Bounds, DevicePixels, Font, FontId, FontMetrics, FontRun, GlyphId, LineLayout, NoopTextSystem,
     Pixels, PlatformTextSystem, RenderGlyphParams, Size, TestAppContext, TextRenderingMode,
@@ -165,9 +165,9 @@ pub(crate) fn uncut(shown: Vec<String>) -> Vec<String> {
         .filter(|line| line.chars().nth(1).is_some())
         .filter(|line| {
             line.strip_suffix('…').is_none_or(|stem| {
-                !shown
-                    .iter()
-                    .any(|whole| whole.len() > line.len() && whole.starts_with(stem))
+                !shown.iter().any(|whole| {
+                    !whole.ends_with('…') && whole.len() > stem.len() && whole.starts_with(stem)
+                })
             })
         })
         .cloned()
@@ -178,4 +178,27 @@ pub(crate) fn uncut(shown: Vec<String>) -> Vec<String> {
 /// for tests that compare a message with its English.
 pub(crate) fn unmarked(text: &str) -> String {
     text.replace(['\u{2068}', '\u{2069}'], "")
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::i18n::leak_tests::uncut;
+
+    #[test]
+    fn truncated_names_can_have_as_many_bytes_as_the_whole_name() {
+        let lines = ["Claude", "Cla…", "shell", "sh…", "猫咪", "猫…", "a"];
+        assert_eq!(
+            uncut(lines.into_iter().map(str::to_owned).collect()),
+            ["Claude", "shell", "猫咪"]
+        );
+    }
+
+    #[test]
+    fn truncated_lines_need_a_complete_longer_source() {
+        let lines = ["Unknown…", "Un…", "shell", "shell…", "Untranslated label"];
+        assert_eq!(
+            uncut(lines.into_iter().map(str::to_owned).collect()),
+            ["Unknown…", "shell", "shell…", "Untranslated label"]
+        );
+    }
 }

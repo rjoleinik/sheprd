@@ -23,6 +23,7 @@ use std::{
     rc::Rc,
 };
 
+mod files;
 pub(crate) mod tool;
 
 /// Lines of a tool call's text output shown under it.
@@ -188,6 +189,12 @@ pub(crate) struct ToolSummary {
 #[derive(Debug)]
 pub(crate) enum Part {
     Text(Rc<[Line]>),
+    /// A standalone local file link, opened only when the person asks.
+    File {
+        id: VisualId,
+        destination: String,
+        blocks: Rc<[super::rich::Block]>,
+    },
     Rich(Rc<[super::rich::Block]>),
     /// Markdown an agent wrapped in a bubble effect, as `:::slam` does.
     Bubble(super::effects::Bubble, Rc<[super::rich::Block]>),
@@ -245,6 +252,7 @@ impl Body {
                 let (own, blocks): (_, &[super::rich::Block]) = match part {
                     Part::Diagram(id, _) | Part::Remote { id, .. } => (Some(*id), &[]),
                     Part::Html { code } => (Some(code.id), &[]),
+                    Part::File { id, blocks, .. } => (Some(*id), &blocks[..]),
                     Part::Rich(blocks) | Part::Bubble(_, blocks) => (None, blocks),
                     Part::Text(_) | Part::Widget(_) | Part::Picture { .. } | Part::Screen(_) => {
                         (None, &[])
@@ -536,9 +544,17 @@ fn message(text: &str, author: Author, visuals: &mut Visuals) -> Vec<Part> {
     };
     let mut parts = Vec::new();
     let mut markdown = String::new();
-    let flush = |text: &mut String, parts: &mut Vec<Part>, visuals: &mut Visuals| {
+    let mut remaining = if author == Author::Agent {
+        sheprd_chat_protocol::MAX_ATTACHMENTS
+    } else {
+        0
+    };
+    let mut flush = |text: &mut String, parts: &mut Vec<Part>, visuals: &mut Visuals| {
         if !text.trim().is_empty() {
-            parts.push(prose_with(text, breaks, visuals));
+            match super::rich::parse_with(text, breaks, visuals) {
+                Some(blocks) => parts.extend(files::split(blocks, &mut remaining)),
+                None => parts.push(Part::Text(message_lines(text))),
+            }
         }
         text.clear();
     };
@@ -657,8 +673,9 @@ fn message(text: &str, author: Author, visuals: &mut Visuals) -> Vec<Part> {
             }
         }
     }
-    if !markdown.trim().is_empty() || parts.is_empty() {
-        parts.push(prose_with(&markdown, breaks, visuals));
+    flush(&mut markdown, &mut parts, visuals);
+    if parts.is_empty() {
+        parts.push(prose_with("", breaks, visuals));
     }
     parts.extend(screen.map(Part::Screen));
     if cut {

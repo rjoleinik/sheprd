@@ -2,7 +2,7 @@
 //! two sides cannot drift apart.
 
 use super::*;
-use crate::apns::payload::MAX_PAYLOAD;
+use crate::apns::payload::{Icon, MAX_PAYLOAD};
 use serde_json::Value;
 use sheprd_chat_protocol::{PermissionKind, PermissionOption};
 
@@ -26,6 +26,7 @@ macro_rules! fixture {
 
 fn base_state() -> ContentState {
     ContentState {
+        detail: Default::default(),
         options: Vec::new(),
         permission: None,
         phase: Phase::Working,
@@ -82,6 +83,13 @@ fn question_update_matches_the_swift_fixture() {
         },
         pane: "w1-p3".to_owned(),
         state: ContentState {
+            detail: Detail {
+                activity: Some("Running tests".to_owned()),
+                files: Some(1),
+                icon: Some(Icon::Test),
+                previous_activities: vec!["Reading lib.rs".to_owned(), "Editing lib.rs".to_owned()],
+                steps: Some(3),
+            },
             options: vec![
                 option("allow", PermissionKind::AllowOnce, "Allow once"),
                 option("reject", PermissionKind::RejectOnce, "Deny"),
@@ -110,6 +118,7 @@ fn end_matches_the_swift_fixture() {
         },
         pane: "w1-p3".to_owned(),
         state: ContentState {
+            detail: Default::default(),
             phase: Phase::Finished,
             step: "Run the tests".to_owned(),
             summary: Some("Worked 6m 2s".to_owned()),
@@ -154,6 +163,7 @@ fn oversized_payload_is_refused() {
         event: Event::Update { alert: None },
         pane: "w1-p3".to_owned(),
         state: ContentState {
+            detail: Default::default(),
             step: "x".repeat(MAX_PAYLOAD),
             ..base_state()
         },

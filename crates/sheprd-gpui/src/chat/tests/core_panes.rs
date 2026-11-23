@@ -12,7 +12,8 @@ use sheprd_backend::{RunState, TerminalId, TerminalInfo};
 use sheprd_client::{ConnectTarget, protocol::AgentStatus};
 use std::collections::BTreeMap;
 
-mod launcher_tab;
+mod pane_menu;
+mod pane_name;
 mod remote;
 
 fn id(name: &str) -> TerminalId {

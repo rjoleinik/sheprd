@@ -3,6 +3,7 @@
 use super::*;
 use crate::push::Chat;
 
+mod activity;
 mod alert;
 mod clear;
 mod decide;

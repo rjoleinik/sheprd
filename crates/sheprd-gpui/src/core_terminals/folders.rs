@@ -97,6 +97,65 @@ impl CoreTerminals {
 }
 
 impl SheprdWindow {
+    /// Keeps the last observed folder through terminal closure and app restart.
+    pub(crate) fn keep_core_workspace_folders(&self, scope: &Scope, cx: &mut App) {
+        let changes: Vec<_> = cx
+            .try_global::<crate::browser::Store>()
+            .into_iter()
+            .flat_map(|store| {
+                store.kept_workspaces(scope).filter_map(|workspace| {
+                    let cwd = self.core_workspace_cwd(store, scope, &workspace.id)?;
+                    (cwd != workspace.cwd).then(|| (workspace.id.clone(), cwd.to_owned()))
+                })
+            })
+            .collect();
+        if !changes.is_empty() {
+            crate::browser::Store::update(cx, |store| {
+                for (id, cwd) in changes {
+                    store.follow_kept_folder(scope, &id, &cwd);
+                }
+            });
+        }
+    }
+
+    /// A workspace follows its oldest driving tab's first pane, independent
+    /// of focus and split groups. The saved folder covers tabs not yet read.
+    pub(super) fn core_workspace_cwd<'a>(
+        &'a self,
+        store: &'a crate::browser::Store,
+        scope: &Scope,
+        workspace: &str,
+    ) -> Option<&'a str> {
+        let host = super::Host::of(scope);
+        let terminal = store
+            .in_workspace(scope, workspace)
+            .filter_map(|tab| match &tab.location {
+                Some(crate::browser::Location::CoreTerminal {
+                    panes,
+                    observe: false,
+                    ..
+                }) => Some((tab.id, panes.first())),
+                _ => None,
+            })
+            .min_by_key(|(id, _)| *id)
+            .map(|(_, terminal)| terminal)
+            .or_else(|| {
+                (host == super::Host::Local && workspace == super::WORKSPACE)
+                    .then(|| self.core_terminals.fallback_terminal())
+                    .flatten()
+            });
+        terminal
+            .and_then(|terminal| self.core_terminals.listed(&host, terminal))
+            .and_then(|info| info.cwd.as_deref())
+            .and_then(std::path::Path::to_str)
+            .or_else(|| {
+                store
+                    .kept_workspace(scope, workspace)
+                    .map(|saved| saved.cwd.as_str())
+            })
+            .filter(|cwd| !cwd.is_empty())
+    }
+
     /// The folder of the pane the user works in: the herdr-core pane the
     /// active group shows, else Herdr's focused pane, where its program is
     /// rather than where its shell started.

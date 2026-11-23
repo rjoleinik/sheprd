@@ -2,7 +2,7 @@
 
 use sheprd_chat_protocol::Via;
 
-use super::*;
+use crate::context::prompts::*;
 
 const PHONE: Origin = Origin::new(Device::PhoneApp, Via::Relay);
 
@@ -222,3 +222,11 @@ fn place_names_without_a_place_say_so_rather_than_stay_as_written() {
 }
 
 mod hardware_keys;
+
+#[test]
+fn desktop_agents_are_told_how_to_attach_arbitrary_files() {
+    let template = Kind::Desktop.builtin();
+    assert!(template.contains("To attach any file"));
+    assert!(template.contains("[filename.ext](</absolute/path with spaces/filename.ext>)"));
+    assert!(template.contains("keep it available at that path"));
+}

@@ -150,7 +150,7 @@ mod process {
     fn failure(supervisor: &Supervisor) -> Option<Arc<crate::Error>> {
         match supervisor.report().status {
             Status::Failed { error, .. } => Some(error),
-            Status::Starting | Status::Ready => None,
+            Status::Starting | Status::Ready(_) => None,
         }
     }
 
@@ -159,7 +159,7 @@ mod process {
         let fake = Fake::new("touch \"$DIR/ready\"\nexec sleep 60");
         let (supervisor, saved) = fake.start(None, fake.probe());
         until("VS Code to answer", || {
-            matches!(supervisor.report().status, Status::Ready)
+            matches!(supervisor.report().status, Status::Ready(_))
         });
         let report = supervisor.report();
         let address = report.address.clone().unwrap();
@@ -196,7 +196,7 @@ mod process {
         let port = free();
         let (supervisor, saved) = fake.start(Some(port), fake.probe());
         until("VS Code to answer", || {
-            matches!(supervisor.report().status, Status::Ready)
+            matches!(supervisor.report().status, Status::Ready(_))
         });
         assert_eq!(supervisor.report().address.unwrap().port, port);
         assert!(fake.read("args").contains(&format!("\n{port}\n")));
@@ -256,7 +256,7 @@ mod process {
         });
         let seen = ready.clone();
         until("a failure", || {
-            if matches!(supervisor.report().status, Status::Ready) {
+            if matches!(supervisor.report().status, Status::Ready(_)) {
                 *seen.lock().unwrap() = true;
             }
             failure(&supervisor).is_some()
@@ -296,7 +296,7 @@ mod process {
         );
         let (supervisor, _) = fake.start(None, fake.probe());
         until("VS Code to answer", || {
-            matches!(supervisor.report().status, Status::Ready)
+            matches!(supervisor.report().status, Status::Ready(_))
         });
         let (child, server) = (fake.read("runs"), fake.read("server"));
         assert!(!gone(&child) && !gone(&server));
@@ -347,7 +347,7 @@ mod process {
         let fake = Fake::new("sleep 60 &\necho $! > \"$DIR/server\"\ntouch \"$DIR/ready\"\nwait");
         let (supervisor, _) = fake.start(None, fake.probe());
         until("VS Code to answer", || {
-            matches!(supervisor.report().status, Status::Ready)
+            matches!(supervisor.report().status, Status::Ready(_))
         });
         let (child, server) = (fake.read("runs"), fake.read("server"));
         let started = Instant::now();

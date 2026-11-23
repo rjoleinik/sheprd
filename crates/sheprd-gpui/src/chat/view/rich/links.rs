@@ -1,7 +1,7 @@
 //! Explicit rich-text links use the pane's existing document-opening policy.
 //! Paths from SSH conversations stay visible and never address this laptop.
 
-use super::*;
+use crate::chat::view::rich::*;
 use crate::{
     chat::{Target, rich::remote_content},
     terminal::{PaneLink, RowLink, file_target},
@@ -9,20 +9,45 @@ use crate::{
 use sheprd_chat_protocol::Cursor;
 use std::borrow::Cow;
 
+#[derive(Clone, Copy)]
+pub(in crate::chat::view) enum Mode {
+    Configured,
+    Attachment,
+}
+
+impl Mode {
+    /// A file card supplies its own affordance; its selectable filename reads
+    /// as a label while preserving the same link target and click handling.
+    pub(super) fn highlight(self, mut style: HighlightStyle) -> HighlightStyle {
+        if matches!(self, Self::Attachment) {
+            style.color = None;
+            style.underline = None;
+            style.font_weight.get_or_insert(FontWeight::MEDIUM);
+        }
+        style
+    }
+}
+
 #[derive(Clone)]
-pub(super) struct Links {
+pub(in crate::chat::view) struct Links {
     view: WeakEntity<SheprdWindow>,
     target: Option<Target>,
     cursor: Option<Cursor>,
     selection_epoch: u64,
     local: bool,
+    pub(in crate::chat::view) mode: Mode,
 }
 
 impl Links {
-    pub(super) fn new(view: &SheprdWindow, pane_id: &str, cx: &Context<SheprdWindow>) -> Self {
+    pub(in crate::chat::view) fn new(
+        view: &SheprdWindow,
+        pane_id: &str,
+        cx: &Context<SheprdWindow>,
+    ) -> Self {
         let pane = view.chats.pane(pane_id);
         Self {
             view: cx.entity().downgrade(),
+            mode: Mode::Configured,
             target: pane.map(|pane| pane.target.clone()),
             cursor: pane.and_then(|pane| pane.session.since()),
             selection_epoch: view.selection_epoch,
@@ -38,7 +63,15 @@ impl Links {
         }
     }
 
+    pub(in crate::chat::view) fn open_attachment(&self, destination: &str, cx: &mut App) {
+        self.open_with(destination, true, cx);
+    }
+
     pub(super) fn open(&self, destination: &str, cx: &mut App) {
+        self.open_with(destination, matches!(self.mode, Mode::Attachment), cx);
+    }
+
+    fn open_with(&self, destination: &str, system: bool, cx: &mut App) {
         if let Ok(url) = crate::browser::WebUrl::try_from(destination) {
             cx.open_url(url.as_str());
             return;
@@ -71,7 +104,7 @@ impl Links {
             };
             view.open_file_link(
                 file,
-                view.config.open_files_in == crate::config::FileTarget::Editor,
+                !system && view.config.open_files_in == crate::config::FileTarget::Editor,
                 cx,
             );
         });

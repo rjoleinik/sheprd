@@ -118,8 +118,8 @@ import Testing
     @Test func theLongestIdIsCutToTheCollapseIdLimit() throws {
         let id = String(repeating: "a", count: SelfTestPush.maxId)
         let request = try SelfTestPush.request(id: id, handle: "h", device: Self.own.publicKey)
-        #expect(request.collapseId.utf8.count == SelfTestPush.maxCollapseId)
-        #expect(request.collapseId.hasPrefix("test-aaaa"))
+        #expect(request.collapseId?.utf8.count == SelfTestPush.maxCollapseId)
+        #expect(request.collapseId?.hasPrefix("test-aaaa") == true)
         // The full id still travels sealed, which the receipt is keyed by.
         let opened = try SelfTestPush.open(Self.sealed(request), device: Self.own.publicKey) {
             try Self.own.sharedSecretFromKeyAgreement(with: $0)

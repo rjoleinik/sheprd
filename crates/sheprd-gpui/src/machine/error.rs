@@ -9,6 +9,10 @@ pub enum Error {
     Agent(#[from] super::agent::Error),
     #[error("{0} is in use: shut it down first")]
     Busy(Name),
+    #[error(
+        "No VM slots available: {in_use} of {limit} in use. Wait for a VM to stop or reuse an unreserved running VM."
+    )]
+    Capacity { in_use: u32, limit: u32 },
     #[error("A machine takes {min} to {max} CPUs on this Mac")]
     Cpus { min: u16, max: u16 },
     #[error("{}: {source}", path.display())]
@@ -37,6 +41,8 @@ pub enum Error {
     InvalidName,
     #[error("A machine takes {min} to {max} GB of memory on this Mac")]
     Memory { min: u16, max: u16 },
+    #[error("Open {installed} instead of {requested} to use the installed machine name")]
+    NameMismatch { requested: Name, installed: Name },
     #[error("No state directory to keep machines in")]
     NoStateDir,
     #[error("No machine is installed at {}", .0.display())]

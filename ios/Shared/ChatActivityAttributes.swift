@@ -46,14 +46,19 @@ struct ChatActivityAttributes: ActivityAttributes {
     /// What to draw, or `nil` for the fixed cover. While this phone uses
     /// the push relay, only sealed content shows. The keys are read only
     /// for sealed content, so plain content (the debug sample, or an older
-    /// computer's) costs no keychain read per render.
+    /// computer's) costs no keychain read per render. Sealed content no
+    /// computer's key opens may be the test this phone started on itself
+    /// (`SelfTestActivity`), which only its own key opens.
     func opened(_ state: ContentState) -> SealedChatActivity.Opened? {
         let sealed = content.plain == nil || state.plain == nil
-        return SealedChatActivity.open(
+        if let opened = SealedChatActivity.open(
             attributes: content,
             state: state,
             keys: sealed ? NotifyKey.activityKeys() : [],
             allowsPlain: !PushRelaySetting.isOn
-        )
+        ) {
+            return opened
+        }
+        return sealed ? NotifyKey.openSelfTest(attributes: content, state: state) : nil
     }
 }

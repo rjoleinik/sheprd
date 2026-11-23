@@ -23,7 +23,7 @@ fn answers(_: &WebUrl) -> crate::Result<Server> {
 fn ready(port: u16, token: &str) -> Report {
     Report {
         revision: 1,
-        status: Status::Ready,
+        status: Status::Ready(Server::from_version(COMMIT).unwrap()),
         address: Some(Address {
             port: NonZeroU16::new(port).unwrap(),
             url: WebUrl::try_from(format!("http://127.0.0.1:{port}/?tkn={token}").as_str())
@@ -62,7 +62,6 @@ fn a_remote_workspace_opens_its_folder_on_its_hosts_server(cx: &mut gpui::TestAp
             view.live.snapshot = Some(Arc::new(shown));
             view.config.code.mode = Some(CodeMode::Start);
             view.config.code.license_accepted = true;
-            view.browser.code_server.started_probe = answers;
         })
     });
     // The tab opens before the host's server has an address, which starts it.
@@ -123,7 +122,6 @@ fn a_remote_tab_from_this_computers_server_moves_to_its_host_with_its_folder(
             view.live.snapshot = Some(Arc::new(shown));
             view.config.code.mode = Some(CodeMode::Start);
             view.config.code.license_accepted = true;
-            view.browser.code_server.started_probe = answers;
         });
         // Saved before hosts had servers: on this computer's, with no folder.
         let host_scope = scope(&view.read(cx).endpoints[0]);
@@ -210,7 +208,6 @@ fn each_moved_remote_tab_gets_its_own_folder(cx: &mut gpui::TestAppContext) {
             view.live.snapshot = Some(Arc::new(shown));
             view.config.code.mode = Some(CodeMode::Start);
             view.config.code.license_accepted = true;
-            view.browser.code_server.started_probe = answers;
         });
         // Both saved before hosts had servers: on this computer's, no folder.
         let host_scope = scope(&view.read(cx).endpoints[0]);

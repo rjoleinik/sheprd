@@ -140,7 +140,7 @@ fn start(plan: Plan) -> crate::Result<Supervisor> {
     Supervisor::start_with(
         plan,
         command,
-        // Never the token: the app gave the server its token itself.
+        // Authenticate only after the owned child reports holding the port.
         super::version,
         // The port is the host's own; nothing is saved.
         |_| Ok(()),

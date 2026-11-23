@@ -35,6 +35,8 @@ pub enum Error {
     NotAdmitted,
     #[error("the fleet did not take the operation this computer signed")]
     NotApplied,
+    #[error("only a computer joins over SSH; a phone joins by pairing")]
+    NotComputer,
     #[error("that bundle is not this computer's")]
     NotMine,
     #[error("this computer is in another fleet")]

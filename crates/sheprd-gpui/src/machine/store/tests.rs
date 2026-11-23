@@ -1,4 +1,6 @@
 #![allow(clippy::unwrap_used)]
+mod reservation_names;
+
 use super::*;
 use crate::machine::Display;
 

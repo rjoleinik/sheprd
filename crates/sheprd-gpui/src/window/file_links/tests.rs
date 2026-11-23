@@ -55,7 +55,16 @@ fn only_documents_and_plain_folders_open_themselves() {
         std::fs::write(&path, "x").unwrap();
         path
     };
-    for name in ["notes.txt", "README.MD", "Makefile"] {
+    for name in [
+        "notes.txt",
+        "README.MD",
+        "Makefile",
+        "clip.mp4",
+        "clip.MOV",
+        "report.pdf",
+        "book.xlsx",
+        "archive.zip",
+    ] {
         assert_eq!(opened(&file(name)), Some(real.join(name)), "{name}");
     }
     for name in [

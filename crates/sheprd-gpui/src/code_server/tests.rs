@@ -63,11 +63,16 @@ fn a_server_that_takes_the_token_is_vs_code() {
 fn a_refused_token_is_told_apart_from_a_missing_server() {
     let forbidden =
         "HTTP/1.1 403 Forbidden\r\ncontent-length: 10\r\nconnection: close\r\n\r\nForbidden.";
-    let address = serve(vec![version(COMMIT), forbidden.into()]);
-    assert!(matches!(
-        probe(&url(address)),
-        Err(crate::Error::Code(Error::TokenRefused))
-    ));
+    for responses in [
+        vec![forbidden.into()],
+        vec![version(COMMIT), forbidden.into()],
+    ] {
+        let address = serve(responses);
+        assert!(matches!(
+            probe(&url(address)),
+            Err(crate::Error::Code(Error::TokenRefused))
+        ));
+    }
 
     let missing = "HTTP/1.1 404 Not Found\r\ncontent-length: 0\r\nconnection: close\r\n\r\n";
     let address = serve(vec![missing.into()]);

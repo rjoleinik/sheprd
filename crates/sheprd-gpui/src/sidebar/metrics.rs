@@ -26,7 +26,7 @@ pub(super) const CHILD_INDENT: f32 = TREE_GUTTER - ROW_PADDING + 12.;
 pub(crate) const ARROW_RESERVE: f32 = 18.;
 pub(crate) const HOST_ARROW_WIDTH: f32 = 12.;
 pub(crate) const HOST_GAP: f32 = 6.;
-pub(crate) const ICON_RESERVE: f32 = 18.;
+pub(crate) const ICON_RESERVE: f32 = 22.;
 
 #[cfg(any(test, feature = "integration-test"))]
 pub(crate) const LABEL_WIDTH: f32 =

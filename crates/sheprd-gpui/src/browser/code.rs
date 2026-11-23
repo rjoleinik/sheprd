@@ -6,12 +6,12 @@
 //! stays alive, keeping its state.
 //!
 //! A page that cannot load says nothing back through the web view, so the
-//! window first asks the server whether it is there, and creates each page
-//! only after an answer of its own. Until then the tab says why it is
+//! window uses the owning worker's readiness report, or probes a configured
+//! server, before creating a page. Until then the tab says why it is
 //! empty. The server is the one at `[code] url`, or the one the app starts
 //! (see [`crate::code_server::launcher`]), or for a workspace on an SSH host
-//! the one the app starts there (see [`super::code_host`]).
-use super::{
+//! the one the app starts there (see [`crate::browser::code_host`]).
+use crate::browser::{
     Editor, GroupId, Location, Scope, Store, TabId, WebUrl, code_host::CodeHost, view::store,
 };
 use crate::i18n::fl;
@@ -42,9 +42,6 @@ pub(crate) struct CodeServer {
     generation: u64,
     /// How the server is asked; tests answer for it.
     pub(super) probe: fn(&WebUrl) -> crate::Result<Server>,
-    /// How the server the app started is asked: its version alone, never
-    /// its token, which the app wrote itself. Tests answer for it.
-    pub(super) started_probe: fn(&WebUrl) -> crate::Result<Server>,
 }
 
 impl Default for CodeServer {
@@ -54,20 +51,15 @@ impl Default for CodeServer {
             state: Reach::Unknown,
             generation: 0,
             probe: code_server::probe,
-            started_probe: code_server::version,
         }
     }
 }
 
 impl CodeServer {
     /// A server nothing is known of yet, asked with these.
-    pub(super) fn asked_by(
-        probe: fn(&WebUrl) -> crate::Result<Server>,
-        started_probe: fn(&WebUrl) -> crate::Result<Server>,
-    ) -> Self {
+    pub(super) fn asked_by(probe: fn(&WebUrl) -> crate::Result<Server>) -> Self {
         Self {
             probe,
-            started_probe,
             ..Self::default()
         }
     }
@@ -103,7 +95,7 @@ impl SheprdWindow {
         }
         let host = self.code_host(cx);
         let startup = self.code_startup(&host, cx);
-        if !super::EMBEDDED {
+        if !crate::browser::EMBEDDED {
             self.show_flash(Flash::warning(fl!("browser-no-pages")), cx);
             return;
         }
@@ -140,7 +132,7 @@ impl SheprdWindow {
     /// platform's web content processes, so this runs from input and ticks,
     /// never from render.
     fn open_code_page(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if !super::EMBEDDED {
+        if !crate::browser::EMBEDDED {
             return;
         }
         let host = self.code_host(cx);
@@ -191,12 +183,18 @@ impl SheprdWindow {
             });
         }
         let started = !matches!(startup, Startup::Address);
+        if let Startup::Ready { server, .. } = &startup {
+            self.code_server_mut(&host).state = Reach::Ready {
+                server: server.clone(),
+                at: Instant::now(),
+            };
+        }
         // The page carries the token, so a server the app started must run
         // right now, holding its port, as the page is made.
         if !wanted
             || !startup.serving()
             || self.code_page_settled(&scope, &workspace, cx)
-            || !self.code_server_ready(&host, &url, started, cx)
+            || (!started && !self.code_server_ready(&host, &url, cx))
             || (started && !Self::code_server_alive(&host, cx))
         {
             return;
@@ -217,9 +215,11 @@ impl SheprdWindow {
                 });
             }
             self.create_editor_page(&tab, window, cx);
-            // An answer serves one page: the next one asks again, in case
-            // the server has stopped since.
-            self.code_server_mut(&host).state = Reach::Unknown;
+            // Configured servers are asked again for each new page. Owned
+            // servers keep using the worker's result and live child check.
+            if !started {
+                self.code_server_mut(&host).state = Reach::Unknown;
+            }
             cx.notify();
         }
     }
@@ -300,14 +300,7 @@ impl SheprdWindow {
     /// nothing is known, it last answered a while ago, or it last failed a
     /// while ago. A page created against a server that has since stopped
     /// would stay blank, so an old answer is not trusted.
-    /// `started` says the server is the one the app started.
-    fn code_server_ready(
-        &mut self,
-        host: &CodeHost,
-        url: &WebUrl,
-        started: bool,
-        cx: &mut Context<Self>,
-    ) -> bool {
+    fn code_server_ready(&mut self, host: &CodeHost, url: &WebUrl, cx: &mut Context<Self>) -> bool {
         match &self.code_server_mut(host).state {
             Reach::Ready { at, .. } if at.elapsed() < RETRY => return true,
             Reach::Asking => return false,
@@ -316,11 +309,7 @@ impl SheprdWindow {
         }
         let server = self.code_server_mut(host);
         server.state = Reach::Asking;
-        let probe = if started {
-            server.started_probe
-        } else {
-            server.probe
-        };
+        let probe = server.probe;
         let (generation, url, host) = (server.generation, url.clone(), host.clone());
         let answer = cx.background_executor().spawn(async move { probe(&url) });
         cx.spawn(async move |this, cx| {

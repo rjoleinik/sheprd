@@ -3,7 +3,9 @@
 //! `cloud exec`, it is the agent's own work on a machine the user made for
 //! it, and it reaches nothing outside that machine.
 
-use super::*;
+use crate::control::server::tabs::{App, Caller, ErrorCode, Response, TabOp, socket};
+#[cfg(target_os = "macos")]
+use crate::control::server::tabs::{Reply, machine_claims};
 #[cfg(target_os = "macos")]
 use crate::{
     control::protocol::{
@@ -21,7 +23,7 @@ use crate::{
 use std::{path::PathBuf, time::Duration};
 
 #[cfg(not(target_os = "macos"))]
-pub(super) fn serve(_: TabOp, incoming: socket::Incoming, _: &mut App) {
+pub(super) fn serve(_: &Caller, _: TabOp, incoming: socket::Incoming, _: &mut App) {
     incoming.respond(Response::error(
         ErrorCode::Unsupported,
         "Virtual Macs need an Apple silicon Mac",
@@ -29,7 +31,7 @@ pub(super) fn serve(_: TabOp, incoming: socket::Incoming, _: &mut App) {
 }
 
 #[cfg(target_os = "macos")]
-pub(super) fn serve(op: TabOp, incoming: socket::Incoming, cx: &mut App) {
+pub(super) fn serve(caller: &Caller, op: TabOp, incoming: socket::Incoming, cx: &mut App) {
     let (name, work) = match op {
         TabOp::MachineAgent { name } => (name, Work::Hello),
         TabOp::MachineExec {
@@ -78,6 +80,9 @@ pub(super) fn serve(op: TabOp, incoming: socket::Incoming, cx: &mut App) {
     };
     if let Err(message) = work.check() {
         return incoming.respond(Response::error(ErrorCode::InvalidRequest, message));
+    }
+    if let Some(response) = machine_claims::check(caller, name.as_str(), cx) {
+        return incoming.respond(response);
     }
     work.run(name, incoming, cx);
 }

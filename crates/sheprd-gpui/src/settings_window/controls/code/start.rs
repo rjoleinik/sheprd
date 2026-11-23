@@ -103,7 +103,7 @@ impl SettingsWindow {
             Startup::Starting { .. } => {
                 card.child(self.control_note(fl!("settings-code-starting")))
             }
-            Startup::Ready { url } => card.child(self.render_code_state(
+            Startup::Ready { url, .. } => card.child(self.render_code_state(
                 "icons/pass.svg",
                 self.theme.palette[2],
                 fl!("settings-code-running", address = url.address().to_string()).into(),

@@ -216,6 +216,38 @@ impl SheprdWindow {
         self.start_core_chat_at(agent, tab, at, carry, cx)
     }
 
+    /// A launcher opens a chat tab in the terminal's workspace and folder.
+    pub(crate) fn start_core_chat_in_tab(
+        &mut self,
+        agent: Agent,
+        tab: TabId,
+        group: Option<crate::browser::GroupId>,
+        cx: &gpui::App,
+    ) -> Result<(), super::StartError> {
+        let store = cx
+            .try_global::<crate::browser::Store>()
+            .ok_or(super::StartError::NoWorkspace)?;
+        let saved = store.get(tab).ok_or(super::StartError::NoWorkspace)?;
+        let scope = saved.scope.clone();
+        let workspace = saved.workspace_id.clone();
+        let cwd = self
+            .core_terminals
+            .chat_split_at(tab)
+            .and_then(|terminal| self.core_terminals.info(tab, &terminal))
+            .and_then(|info| info.cwd.clone());
+        self.start_core_chat_tab(
+            agent,
+            Purpose::Tab {
+                scope,
+                workspace,
+                group,
+            },
+            cwd,
+            None,
+            cx,
+        )
+    }
+
     /// Explicit CLI pane keys resolve against the owning core, including
     /// ordinary terminal panes; an unknown key never falls through to Herdr 1.
     pub(crate) fn start_core_chat_beside(
@@ -269,50 +301,39 @@ impl SheprdWindow {
         &mut self,
         agent: Agent,
         carry: Option<&Settings>,
+        group: Option<crate::browser::GroupId>,
         cx: &gpui::App,
     ) -> Result<(), super::StartError> {
         self.kept_in_front().ok_or(super::StartError::NoWorkspace)?;
         let (scope, workspace) = self.browser_key().ok_or(super::StartError::NoWorkspace)?;
         let cwd = self.front_workspace_cwd();
-        self.start_core_chat_tab(agent, scope, workspace, cwd, carry, cx)
+        self.start_core_chat_tab(
+            agent,
+            Purpose::Tab {
+                scope,
+                workspace,
+                group,
+            },
+            cwd,
+            carry,
+            cx,
+        )
     }
 
-    /// Opens a tab beside herdr-core tab `tab` running a chat with `agent`:
-    /// in `tab`'s workspace, starting in the folder of its pane in use.
-    pub(crate) fn start_core_chat_tab_beside(
-        &mut self,
-        agent: Agent,
-        tab: TabId,
-        cx: &gpui::App,
-    ) -> Result<(), super::StartError> {
-        let (scope, workspace) = cx
-            .try_global::<crate::browser::Store>()
-            .and_then(|store| store.get(tab))
-            .map(|shown| (shown.scope.clone(), shown.workspace_id.clone()))
-            .ok_or(super::StartError::NoWorkspace)?;
-        let cwd = self
-            .core_terminals
-            .chat_split_at(tab)
-            .and_then(|at| self.core_folder(tab, &at));
-        self.start_core_chat_tab(agent, scope, workspace, cwd, None, cx)
-    }
-
-    /// Opens a tab of kept workspace `workspace` in `scope` running a chat
-    /// with `agent` in `cwd`.
+    /// Starts a chat for the captured workspace and group in `purpose`.
     pub(crate) fn start_core_chat_tab(
         &mut self,
         agent: Agent,
-        scope: crate::browser::Scope,
-        workspace: String,
+        purpose: Purpose,
         cwd: Option<std::path::PathBuf>,
         carry: Option<&Settings>,
         cx: &gpui::App,
     ) -> Result<(), super::StartError> {
-        let host = crate::core_terminals::Host::of(&scope);
+        let host = self.purpose_host(&purpose);
         let mut spawn = self.prepare_core_chat(agent, &host, carry)?;
         spawn.cwd = cwd;
         self.chats.last_started = Some(agent);
-        self.start_core_program(Purpose::Tab { scope, workspace }, spawn, cx);
+        self.start_core_program(purpose, spawn, cx);
         Ok(())
     }
 

@@ -1,7 +1,7 @@
 # A pane's menu, from a right-click on the pane or its agent's sidebar row,
 # and its pages: rename, move, move to another device, and processes.
 
-pane-menu-rename = Rename
+pane-menu-rename = Rename pane
 pane-menu-split-right = Split Right
 pane-menu-split-down = Split Down
 pane-menu-swap = Swap with Focused Pane

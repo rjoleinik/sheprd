@@ -17,10 +17,10 @@ fn answers(_: &WebUrl) -> crate::Result<Server> {
     Ok(Server::from_version(COMMIT).unwrap())
 }
 
-/// The check of an address's token, which the started server must never
-/// get: it would carry the token to whatever answers the port.
+/// An owned server uses the worker's answer, never a window's independent
+/// token-bearing request against a port whose owner may have changed.
 fn refuses_token(_: &WebUrl) -> crate::Result<Server> {
-    panic!("the started server was asked with its token");
+    panic!("the window probed an owned server instead of using its worker report");
 }
 
 /// The fixture window with VS Code found, as a running app would have it.
@@ -30,7 +30,6 @@ fn found(cx: &mut gpui::TestAppContext) -> (Entity<SheprdWindow>, &mut VisualTes
         Launcher::fixture(cx, Cli::Found("/Applications/code-tunnel".into()));
         view.update(cx, |view, _| {
             view.browser.code_server.probe = refuses_token;
-            view.browser.code_server.started_probe = answers;
         });
     });
     draw(cx);
@@ -146,7 +145,11 @@ fn a_started_server_opens_the_page_on_its_own_address(cx: &mut gpui::TestAppCont
     assert!(!made);
     assert!(cx.debug_bounds("code-placeholder").is_some());
 
-    set_report(cx, Status::Ready, Some(51234));
+    set_report(
+        cx,
+        Status::Ready(Server::from_version(COMMIT).unwrap()),
+        Some(51234),
+    );
     tick(&view, cx);
     // The server answered; the next tick makes the page.
     tick(&view, cx);
@@ -218,7 +221,11 @@ fn no_page_is_made_for_a_started_server_that_stopped(cx: &mut gpui::TestAppConte
     let (view, cx) = found(cx);
     accept(&view, cx);
     run(&view, cx, Command::OpenCode);
-    set_report(cx, Status::Ready, Some(51234));
+    set_report(
+        cx,
+        Status::Ready(Server::from_version(COMMIT).unwrap()),
+        Some(51234),
+    );
     // Its child exits while the report still says Ready.
     cx.update(|_, cx| Launcher::stand_in_exits(cx));
     tick(&view, cx);

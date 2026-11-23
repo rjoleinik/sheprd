@@ -5,6 +5,9 @@
       "title": "Claude needs an answer"
     },
     "content-state": {
+      "activity": "Running tests",
+      "files": 1,
+      "icon": "test",
       "options": [
         {
           "id": "allow",
@@ -25,9 +28,14 @@
         "Read lib.rs",
         "Edit lib.rs"
       ],
+      "previousActivities": [
+        "Reading lib.rs",
+        "Editing lib.rs"
+      ],
       "question": "Run just ci",
       "startedAt": 1799999990,
       "step": "Run the tests",
+      "steps": 3,
       "waiting": 1,
       "working": 1
     },

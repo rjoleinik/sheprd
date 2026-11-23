@@ -34,6 +34,26 @@ fn the_relay_agent_is_scrubbed_before_the_daemon() {
     assert!(agent < daemon);
 }
 
+/// Puts an executable `script` at `path`. A `cp` child writes it there,
+/// so no descriptor of this process is ever open on a file that runs: a
+/// test thread spawning in between would inherit one, and running the
+/// script would then fail with "text file busy" (ETXTBSY) on Linux, so the
+/// scrub would skip it.
+#[cfg(unix)]
+fn executable(path: &std::path::Path, script: &str) {
+    use std::os::unix::fs::PermissionsExt as _;
+    let source = path.with_extension("source");
+    std::fs::write(&source, script).unwrap();
+    let copied = std::process::Command::new("/bin/cp")
+        .arg(&source)
+        .arg(path)
+        .status()
+        .unwrap();
+    assert!(copied.success());
+    std::fs::remove_file(&source).unwrap();
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+}
+
 /// Runs the scrub script under `sh` with `home` as `HOME` and `path` as
 /// `PATH`, and returns what it printed.
 #[cfg(unix)]
@@ -58,18 +78,15 @@ fn run_scrub(home: &std::path::Path, path: &std::ffi::OsStr) -> String {
 /// and leaves `marker` when it runs it.
 #[cfg(unix)]
 fn agent(dir: &std::path::Path, marker: &std::path::Path) {
-    use std::os::unix::fs::PermissionsExt as _;
     std::fs::create_dir_all(dir).unwrap();
     let path = dir.join("sheprd-relay-agent");
-    std::fs::write(
+    executable(
         &path,
-        format!(
+        &format!(
             "#!/bin/sh\ncase \"$1\" in --help) echo 'usage: fleet scrub';; fleet) : > '{}';; esac\n",
             marker.display()
         ),
-    )
-    .unwrap();
-    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    );
 }
 
 #[cfg(unix)]
@@ -101,19 +118,16 @@ fn the_scrub_runs_the_installed_agent_never_another_on_path() {
 /// `succeeds`.
 #[cfg(unix)]
 fn daemon(dir: &std::path::Path, name: &str, marker: &std::path::Path, succeeds: bool) {
-    use std::os::unix::fs::PermissionsExt as _;
     std::fs::create_dir_all(dir).unwrap();
     let path = dir.join(name);
     let status = if succeeds { 0 } else { 1 };
-    std::fs::write(
+    executable(
         &path,
-        format!(
+        &format!(
             "#!/bin/sh\ncase \"$1\" in --help) echo 'usage: fleet scrub';; fleet) echo ran >> '{}'; exit {status};; esac\n",
             marker.display()
         ),
-    )
-    .unwrap();
-    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    );
 }
 
 #[cfg(unix)]
@@ -175,7 +189,6 @@ fn a_daemon_program_reached_twice_is_scrubbed_once() {
 #[cfg(unix)]
 #[test]
 fn a_daemon_program_without_fleet_scrub_is_left_alone() {
-    use std::os::unix::fs::PermissionsExt as _;
     let root = tempfile::tempdir().unwrap();
     let home = root.path().join("home");
     let bin = home.join(".local/bin");
@@ -183,15 +196,13 @@ fn a_daemon_program_without_fleet_scrub_is_left_alone() {
     let ran = root.path().join("ran");
     // An older program, from before the fleet, holds no fleet state.
     let path = bin.join("sheprd-remote-control");
-    std::fs::write(
+    executable(
         &path,
-        format!(
+        &format!(
             "#!/bin/sh\ncase \"$1\" in --help) echo 'usage: serve';; *) : > '{}';; esac\n",
             ran.display()
         ),
-    )
-    .unwrap();
-    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    );
     let printed = run_scrub(&home, std::ffi::OsStr::new("/usr/bin:/bin"));
     assert!(!ran.exists());
     // Nothing that held a fleet ran: not reported as access gone.
@@ -202,18 +213,15 @@ fn a_daemon_program_without_fleet_scrub_is_left_alone() {
 /// `marker` when asked to `fleet scrub`.
 #[cfg(unix)]
 fn program(dir: &std::path::Path, name: &str, usage: &str, marker: &std::path::Path) {
-    use std::os::unix::fs::PermissionsExt as _;
     std::fs::create_dir_all(dir).unwrap();
     let path = dir.join(name);
-    std::fs::write(
+    executable(
         &path,
-        format!(
+        &format!(
             "#!/bin/sh\ncase \"$1\" in --help) echo '{usage}';; fleet) : > '{}';; esac\n",
             marker.display()
         ),
-    )
-    .unwrap();
-    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    );
 }
 
 #[cfg(unix)]

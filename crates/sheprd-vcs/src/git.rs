@@ -13,6 +13,7 @@ mod create_pr;
 mod error;
 mod identity;
 pub mod restack;
+pub mod upstream;
 
 pub use ahead::Ahead;
 pub use error::Error;

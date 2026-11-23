@@ -14,7 +14,7 @@ use super::{
     cell::RowState,
     glyph_width, label_text,
     layout::{self, Highlight, SidebarLook},
-    line_height, visible_workspace_entries,
+    line_height, repository, visible_workspace_entries,
     wash::HostMark,
     workspaces::workspace_label,
 };
@@ -31,7 +31,9 @@ use gpui::{prelude::*, *};
 use sheprd_client::protocol::AgentStatus;
 use std::collections::HashMap;
 
-/// Wide enough for the shared mark grid: a two-digit workspace number, an
+mod repository_marks;
+
+/// Wide enough for the shared mark grid: an indexed repository tile, an
 /// agent icon, and a drawn status icon, plus even padding inside the highlight.
 pub(crate) const RAIL_WIDTH: f32 = 64.;
 const HOST_MARK: f32 = 22.;
@@ -156,9 +158,16 @@ impl SheprdWindow {
         let slot = multi || silenced.values().any(Silenced::any_workspace);
         // A large sidebar font would make the columns wider than the rail and
         // clip the status icons, so the rail steps the font down until they fit.
-        let fitted = rail_font(&self.config.sidebar, indicators, multi, slot);
+        let repository_icons = self.config.show_repository_icons;
+        let fitted = rail_font(
+            &self.config.sidebar,
+            indicators,
+            multi,
+            slot,
+            repository_icons,
+        );
         let font = &fitted;
-        let columns = rail_columns(font, indicators, multi, slot);
+        let columns = rail_columns(font, indicators, multi, slot, repository_icons);
         let split = self.sidebar_split.unwrap_or(0.5).clamp(0.1, 0.9);
         let mut spaces = div()
             .id("rail-spaces")
@@ -294,16 +303,16 @@ impl SheprdWindow {
                     .row()
                     .items_center()
                     .gap(px(columns.gap))
-                    .child(mark_slot(
-                        format!("rail-mark-{key}"),
-                        columns.badge,
-                        columns.height,
-                        if focused {
-                            theme.foreground
-                        } else {
-                            theme.muted
-                        },
+                    .child(repository_marks::workspace_mark(
+                        &key,
                         &number,
+                        repository::name(workspace).filter(|_| {
+                            repository_icons && !crate::worktree_identity::is_linked(workspace)
+                        }),
+                        font,
+                        columns,
+                        theme,
+                        focused,
                     ))
                     .when_some(columns.icon, |marks, icon| {
                         marks.child(
@@ -336,6 +345,15 @@ impl SheprdWindow {
                         columns.height,
                         indicator(workspace.status, font, indicators),
                     ));
+                if position > 0 && !indented {
+                    spaces = spaces.child(
+                        div()
+                            .relative()
+                            .flex_none()
+                            .h(px(13.))
+                            .child(repository::separator(&key, 0., 8., theme).top(px(6.))),
+                    );
+                }
                 spaces = spaces.child(
                     aligned_row(
                         &key,
@@ -352,12 +370,15 @@ impl SheprdWindow {
                     .id(SharedString::from(key.clone()))
                     .debug_selector(|| key)
                     .cursor_pointer()
-                    .tooltip(hint.with(describe(
-                        host,
-                        workspace_label(workspace, indented),
-                        None,
-                        muted_word(status_word(workspace.status), muted).as_deref(),
-                    )))
+                    .tooltip(
+                        hint.with(describe(
+                            host,
+                            workspace_label(workspace, indented),
+                            repository::name(workspace)
+                                .filter(|name| *name != workspace_label(workspace, indented)),
+                            muted_word(status_word(workspace.status), muted).as_deref(),
+                        )),
+                    )
                     .on_mouse_down(
                         MouseButton::Right,
                         cx.listener(move |this, event: &MouseDownEvent, window, cx| {
@@ -581,11 +602,23 @@ impl Columns {
     }
 }
 
-fn rail_columns(font: &FontConfig, indicators: Indicators, multi: bool, slot: bool) -> Columns {
+fn rail_columns(
+    font: &FontConfig,
+    indicators: Indicators,
+    multi: bool,
+    slot: bool,
+    repository_icons: bool,
+) -> Columns {
     let glyph = glyph_width(font);
     let icon = AGENT_ICON.min(font.size + 1.);
     Columns {
-        badge: (glyph * 2.).max(if multi { glyph } else { icon }),
+        badge: (glyph * 2.)
+            .max(if multi { glyph } else { icon })
+            .max(if repository_icons {
+                line_height(font) + glyph + 2.
+            } else {
+                0.
+            }),
         dot: indicators.width(font),
         gap: MARK_GAP,
         height: line_height(font).max(icon),
@@ -602,9 +635,15 @@ const RAIL_FONT_MIN: f32 = 8.;
 
 /// `font`, stepped down in half pixels until the column grid fits the rail.
 /// A font that already fits is returned as is.
-fn rail_font(font: &FontConfig, indicators: Indicators, multi: bool, slot: bool) -> FontConfig {
+fn rail_font(
+    font: &FontConfig,
+    indicators: Indicators,
+    multi: bool,
+    slot: bool,
+    repository_icons: bool,
+) -> FontConfig {
     let mut fitted = font.clone();
-    while rail_columns(&fitted, indicators, multi, slot).width() > RAIL_GRID
+    while rail_columns(&fitted, indicators, multi, slot, repository_icons).width() > RAIL_GRID
         && fitted.size > RAIL_FONT_MIN
     {
         fitted.size = (fitted.size - 0.5).max(RAIL_FONT_MIN);

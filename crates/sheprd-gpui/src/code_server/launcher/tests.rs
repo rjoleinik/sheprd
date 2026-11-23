@@ -1,5 +1,6 @@
 #![allow(clippy::unwrap_used)]
 use super::*;
+use crate::code_server::Server;
 use crate::code_server::supervisor::Address;
 use std::num::NonZeroU16;
 
@@ -87,7 +88,10 @@ fn builds_without_pages_find_and_start_nothing() {
     };
     let token = PathBuf::from("/state/vscode-token");
     assert!(plan(false, &start, &found(), token).is_none());
-    let ready = report(Status::Ready, Some(51234));
+    let ready = report(
+        Status::Ready(Server::from_version(COMMIT).unwrap()),
+        Some(51234),
+    );
     assert!(matches!(
         startup(false, &start, &found(), true, Some(&ready)),
         Startup::Address
@@ -130,8 +134,12 @@ fn the_worker_report_says_where_the_server_is() {
         startup(true, &code, &cli, true, Some(&starting)),
         Startup::Starting { url: None }
     ));
-    let ready = report(Status::Ready, Some(51234));
-    let Startup::Ready { url: ready_url } = startup(true, &code, &cli, true, Some(&ready)) else {
+    let ready = report(
+        Status::Ready(Server::from_version(COMMIT).unwrap()),
+        Some(51234),
+    );
+    let Startup::Ready { url: ready_url, .. } = startup(true, &code, &cli, true, Some(&ready))
+    else {
         panic!("not ready");
     };
     assert_eq!(ready_url.address(), "127.0.0.1:51234");
@@ -212,7 +220,12 @@ fn a_running_server_is_kept_unless_its_program_or_port_changes(cx: &mut gpui::Te
         assert!(Launcher::running(cx));
         // The port it picked and saved comes back with the config, which
         // may be before the poll took the worker's report.
-        let picked = report(Status::Ready, Some(51234)).address.unwrap();
+        let picked = report(
+            Status::Ready(Server::from_version(COMMIT).unwrap()),
+            Some(51234),
+        )
+        .address
+        .unwrap();
         let launcher = cx.global::<Launcher>();
         launcher.server.as_ref().unwrap().report_address(picked);
         assert!(Launcher::report(cx).is_none(), "not polled yet");
@@ -304,3 +317,5 @@ fn a_config_that_no_longer_starts_vs_code_stops_it(cx: &mut gpui::TestAppContext
         assert!(!Launcher::running(cx));
     });
 }
+
+const COMMIT: &str = "2a59476c9bfcb90b3ddc372c36762471b7dfad1c";

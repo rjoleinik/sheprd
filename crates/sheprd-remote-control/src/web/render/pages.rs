@@ -17,14 +17,30 @@ pub(crate) struct Folders {
 
 impl Folders {
     /// Whether `path` is one this form offers, so a request cannot name
-    /// another folder.
+    /// another folder: one workspaces use, or a visible folder directly in
+    /// a project root, even one past the picker's limit, such as a project
+    /// just made there.
     pub(crate) fn offers(&self, path: &str) -> bool {
         self.recent.iter().any(|folder| folder == path)
-            || self
-                .roots
-                .iter()
-                .any(|(_, folders)| folders.iter().any(|folder| folder == path))
+            || self.roots.iter().any(|(root, folders)| {
+                folders.iter().any(|folder| folder == path) || directly_in(root, path)
+            })
     }
+}
+
+/// Whether `path` names a visible folder directly in `root`. Blocking: it
+/// looks at the disk.
+fn directly_in(root: &str, path: &str) -> bool {
+    let path = std::path::Path::new(path);
+    path.parent()
+        .is_some_and(|parent| parent == std::path::Path::new(root))
+        && path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| !name.starts_with('.'))
+        && path
+            .symlink_metadata()
+            .is_ok_and(|metadata| metadata.file_type().is_dir())
 }
 
 fn agents(selected: Agent) -> Markup {

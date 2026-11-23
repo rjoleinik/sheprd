@@ -57,7 +57,7 @@ pub(super) fn check_row_geometry(cx: &mut gpui::VisualTestContext) {
     let icon = cx.debug_bounds("github-herdr").unwrap();
     let title = cx.debug_bounds("name-herdr").unwrap();
     let detail = cx.debug_bounds("detail-herdr").unwrap();
-    assert_eq!(icon.size, size(px(12.), px(12.)));
+    assert_eq!(icon.size, size(px(16.), px(16.)));
     assert_eq!(title.left(), icon.right() + px(6.));
     assert_eq!(icon.left(), detail.left());
     assert_eq!(title.right(), detail.right());

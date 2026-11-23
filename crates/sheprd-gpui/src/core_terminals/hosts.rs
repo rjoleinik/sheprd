@@ -278,8 +278,7 @@ impl CoreTerminals {
 
     /// A terminal for `purpose` on `host` that started as `outcome` says,
     /// waiting to be placed.
-    // Only the lifecycle tests, which need Unix sockets, use it.
-    #[cfg(all(test, unix))]
+    #[cfg(test)]
     pub(crate) fn start_for_test(
         &mut self,
         purpose: Purpose,
@@ -460,7 +459,9 @@ impl SheprdWindow {
         // one left empty goes, and the host keeps new workspaces in its
         // Herdr from now on, as it lacks a core.
         if error.core_missing()
-            && let Purpose::Tab { scope, workspace } = &purpose
+            && let Purpose::Tab {
+                scope, workspace, ..
+            } = &purpose
             && crate::browser::is_kept_id(workspace)
         {
             self.forget_empty_kept_workspace(scope, workspace, window, cx);
@@ -473,7 +474,9 @@ impl SheprdWindow {
         // A saved host's stand-in workspace whose first shell did not start
         // goes while empty, so it is kept and its shell tried again once the
         // core may be dialled again.
-        if let Purpose::Tab { scope, workspace } = &purpose
+        if let Purpose::Tab {
+            scope, workspace, ..
+        } = &purpose
             && !scope.is_local()
             && workspace == super::WORKSPACE
         {
@@ -482,7 +485,9 @@ impl SheprdWindow {
         // Only while the workspace the tab was asked for is still the one
         // shown, since the Herdr tab opens in the focused workspace.
         if error.core_missing()
-            && let Purpose::Tab { scope, workspace } = &purpose
+            && let Purpose::Tab {
+                scope, workspace, ..
+            } = &purpose
             && self
                 .browser_key()
                 .is_some_and(|(focused, shown)| focused == *scope && shown == *workspace)

@@ -284,13 +284,43 @@ pub(super) fn machine(
             "A machine name takes letters, digits, '-', and '_', and starts with a letter or digit",
         ));
     };
+    // Resolve before the tab stores its name: the tab, live VM, and claims
+    // must all use the installed directory entry's spelling.
+    let resolved = std::rc::Rc::new(std::cell::RefCell::new(None));
+    #[cfg(target_os = "macos")]
+    {
+        let ready = resolved.clone();
+        let read = cx
+            .background_executor()
+            .spawn(async move { crate::machine::resolve_name(&name) });
+        cx.spawn(async move |_: &mut gpui::AsyncApp| {
+            *ready.borrow_mut() = Some(read.await);
+        })
+        .detach();
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        *resolved.borrow_mut() = Some(Ok::<_, crate::machine::Error>(name));
+    }
+    let ready = resolved.clone();
     open_there(
         caller,
         incoming,
         watches,
         cx,
-        |_| true,
+        move |_| ready.borrow().is_some(),
         move |view, workspace, window, cx| {
+            let name = match resolved.borrow_mut().take() {
+                Some(Ok(name)) => name,
+                Some(Err(error)) => return Response::error(ErrorCode::Failed, error.to_string()),
+                None => {
+                    return Response::error(ErrorCode::Timeout, "Machine name was not resolved");
+                }
+            };
+            #[cfg(target_os = "macos")]
+            if let Err(error) = crate::machine::check_capacity(&name) {
+                return Response::error(ErrorCode::Busy, error.to_string());
+            }
             #[cfg(target_os = "macos")]
             if setup {
                 crate::machine::guide::begin(&name, cx);

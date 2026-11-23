@@ -157,13 +157,20 @@ impl SheprdWindow {
             .and_then(|snapshot| crate::palette::launch_root(snapshot, workspace))
             .map(PathBuf::from)
             .filter(|root| root.is_absolute());
-        herdr.or_else(|| {
-            let (tab, terminal) = self.shown_core_pane(cx)?;
-            let shown = cx.try_global::<crate::browser::Store>()?.get(tab)?;
-            (shown.workspace_id == workspace)
-                .then(|| self.core_folder(tab, &terminal))
-                .flatten()
-        })
+        herdr
+            .or_else(|| {
+                let (tab, terminal) = self.shown_core_pane(cx)?;
+                let shown = cx.try_global::<crate::browser::Store>()?.get(tab)?;
+                (shown.workspace_id == workspace)
+                    .then(|| self.core_folder(tab, &terminal))
+                    .flatten()
+            })
+            .or_else(|| {
+                let store = cx.try_global::<crate::browser::Store>()?;
+                let scope = crate::browser::scope(&self.endpoints[self.selected_endpoint]);
+                self.core_workspace_cwd(store, &scope, workspace)
+                    .map(PathBuf::from)
+            })
     }
 
     /// `workspace` as the window's Herdr daemon keeps it, when it does.
@@ -202,7 +209,10 @@ impl SheprdWindow {
             .try_global::<crate::browser::Store>()
             .and_then(|store| store.kept_workspace(scope, workspace))
         {
-            return (!kept.cwd.is_empty()).then(|| PathBuf::from(&kept.cwd));
+            let store = cx.global::<crate::browser::Store>();
+            return self
+                .core_workspace_cwd(store, scope, &kept.id)
+                .map(PathBuf::from);
         }
         let index = self.endpoint_of_scope(scope)?;
         let snapshot = self.live_at(index).snapshot.as_deref()?;

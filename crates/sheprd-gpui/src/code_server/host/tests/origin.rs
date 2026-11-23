@@ -38,8 +38,8 @@ fn a_page_name_that_resolves_elsewhere_is_refused() {
 }
 
 /// The version is asked on `127.0.0.1`, whatever this computer's resolver
-/// makes of the page's name, and never with the token: by the worker and by
-/// the windows, which both ask with `code_server::version`.
+/// makes of the page's name. Only the worker asks, after its child reports
+/// holding the port, with the token needed by current VS Code releases.
 #[test]
 fn a_hosts_server_is_asked_on_ipv4_loopback() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -66,8 +66,11 @@ fn a_hosts_server_is_asked_on_ipv4_loopback() {
     let server = crate::code_server::version(&page).unwrap();
     assert_eq!(server.short_commit(), &COMMIT[..7]);
     let request = asked.join().unwrap();
-    assert!(request.starts_with("GET /version "), "{request}");
-    assert!(!request.contains("secret"), "{request}");
+    assert!(request.starts_with("GET /version?tkn=secret "), "{request}");
+    assert!(
+        request.contains("Host: 127.0.0.1:") || request.contains("host: 127.0.0.1:"),
+        "{request}"
+    );
 }
 
 /// The address a host's worker publishes, which windows load, carries the

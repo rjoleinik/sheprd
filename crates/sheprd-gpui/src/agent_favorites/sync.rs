@@ -21,19 +21,21 @@ const IDLE: Duration = Duration::from_secs(20);
 /// a daemon on a machine. An older build refuses `favorites` and prints
 /// nothing, as does a machine without the program. Standard input is drained
 /// so the sender is never left writing to no one.
-const READ: &str = "\
-program=$(command -v sheprd-remote-control || command -v herdr-remote-control || true)
-[ -n \"$program\" ] || program=\"$HOME/.local/bin/sheprd-remote-control\"
+const READ: &str = concat!(
+    crate::remote::program::find_program!(),
+    "\
 if [ -x \"$program\" ]; then \"$program\" favorites 2>/dev/null || true; fi
 cat >/dev/null
-";
+"
+);
 /// [`READ`], making the change given on standard input.
-const CHANGE: &str = "\
-program=$(command -v sheprd-remote-control || command -v herdr-remote-control || true)
-[ -n \"$program\" ] || program=\"$HOME/.local/bin/sheprd-remote-control\"
+const CHANGE: &str = concat!(
+    crate::remote::program::find_program!(),
+    "\
 if [ -x \"$program\" ]; then \"$program\" favorites --offer 2>/dev/null || true; fi
 cat >/dev/null
-";
+"
+);
 
 /// Makes `change`, if any, on the device's daemon and returns the favorites
 /// that stand, or `None` when the device has no daemon that keeps them.

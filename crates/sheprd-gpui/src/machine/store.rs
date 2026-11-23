@@ -64,6 +64,52 @@ pub(crate) fn list() -> Result<Vec<Listing>> {
     list_in(&root()?)
 }
 
+/// Resolve the directory entry's spelling by filesystem identity, including
+/// aliases on case-insensitive volumes. Run on a worker, like `list`.
+pub(crate) fn resolve_name(name: &Name) -> Result<Name> {
+    resolve_name_in(&root()?, name)
+}
+
+/// Restored tabs may contain old aliases. Refuse to boot a disk under a
+/// different live-state key, even when the filesystem accepts the alias.
+pub(super) fn require_installed_name(name: &Name) -> Result<()> {
+    require_installed_name_in(&root()?, name)
+}
+
+fn require_installed_name_in(root: &Path, name: &Name) -> Result<()> {
+    let installed = resolve_name_in(root, name)?;
+    if installed != *name {
+        return Err(Error::NameMismatch {
+            requested: name.clone(),
+            installed,
+        });
+    }
+    Ok(())
+}
+
+fn resolve_name_in(root: &Path, name: &Name) -> Result<Name> {
+    let requested = root.join(name.as_str());
+    let metadata = fs::metadata(&requested).map_err(|source| read_error(&requested, source))?;
+    for entry in fs::read_dir(root).map_err(|source| read_error(root, source))? {
+        let entry = entry.map_err(|source| read_error(root, source))?;
+        let Some(text) = entry.file_name().to_str().map(str::to_owned) else {
+            continue;
+        };
+        let Ok(installed) = Name::try_from(text) else {
+            continue;
+        };
+        let path = entry.path();
+        let candidate = fs::metadata(&path).map_err(|source| read_error(&path, source))?;
+        if candidate.dev() == metadata.dev()
+            && candidate.ino() == metadata.ino()
+            && path.join(DISK).is_file()
+        {
+            return Ok(installed);
+        }
+    }
+    Err(Error::NotInstalled(requested))
+}
+
 fn list_in(root: &Path) -> Result<Vec<Listing>> {
     let entries = match fs::read_dir(root) {
         Ok(entries) => entries,

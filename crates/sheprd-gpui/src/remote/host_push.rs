@@ -22,11 +22,12 @@ const OUTPUT: u64 = 16 * 1024;
 const IDLE: Duration = Duration::from_secs(15);
 
 /// Finds the program as `device_tags` does, without installing it.
-pub(crate) const SCRIPT: &str = "\
-program=$(command -v sheprd-remote-control || command -v herdr-remote-control || true)
-[ -n \"$program\" ] || program=\"$HOME/.local/bin/sheprd-remote-control\"
+pub(crate) const SCRIPT: &str = concat!(
+    crate::remote::program::find_program!(),
+    "\
 if [ -x \"$program\" ]; then \"$program\" push-status 2>/dev/null || true; fi
-";
+"
+);
 
 /// Asks the host `target` reaches; `None` when no daemon there answered.
 pub(crate) fn ask(

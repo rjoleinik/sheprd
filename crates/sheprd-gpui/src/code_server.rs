@@ -51,13 +51,13 @@ impl Server {
     }
 }
 
-/// Asks the server at `url` for its version, then checks that it takes the
-/// address's connection token. `/version` needs no token, so a server that
-/// answers it but refuses the address has the wrong one.
+/// Asks the configured server for its version with its connection token.
+/// Recent `serve-web` releases authenticate every route, including `/version`.
 pub(crate) fn probe(url: &WebUrl) -> Result<Server> {
     let (agent, unreachable) = (agent(), unreachable(url));
     let server = ask_version(&agent, url)?;
-    // The token is accepted with a redirect that sets its cookie.
+    // Older servers leave /version public. Check the protected page too,
+    // without following a redirect that could forward the token elsewhere.
     match agent
         .get(url.as_str())
         .call()
@@ -71,13 +71,10 @@ pub(crate) fn probe(url: &WebUrl) -> Result<Server> {
     }
 }
 
-/// Asks the server at `url` for its version alone, sending nothing of the
-/// address's token: for the server the app started, whose token it wrote,
-/// so that no question carries the token to whatever answers the port.
-///
-/// A server the app started listens on `127.0.0.1`, so a loopback name is
-/// asked there: a host's page name under `.localhost`, which a browser
-/// keeps on this computer itself, is one the system's resolver may not know.
+/// Authenticated readiness check for a server owned by the supervisor.
+/// Call only after the child reports that it holds the port. The window uses
+/// that worker's result instead of sending a token in a separate probe.
+/// Host-specific loopback names are asked at IPv4 loopback directly.
 pub(crate) fn version(url: &WebUrl) -> Result<Server> {
     let loopback = url
         .loopback_port()
@@ -103,11 +100,18 @@ fn unreachable(url: &WebUrl) -> impl Fn(ureq::Error) -> Error + '_ {
 }
 
 fn ask_version(agent: &ureq::Agent, url: &WebUrl) -> Result<Server> {
+    let mut endpoint =
+        url::Url::parse(url.as_str()).map_err(|_| crate::Error::InvalidBrowserUrl)?;
+    endpoint.set_path("/version");
+    endpoint.set_fragment(None);
     let mut response = agent
-        .get(format!("{}/version", url.origin()))
+        .get(endpoint.as_str())
         .call()
         .map_err(unreachable(url))?;
     let status = response.status().as_u16();
+    if matches!(status, 401 | 403) {
+        return Err(Error::TokenRefused.into());
+    }
     let mut body = String::new();
     let read = response
         .body_mut()

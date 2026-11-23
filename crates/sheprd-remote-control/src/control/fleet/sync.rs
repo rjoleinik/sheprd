@@ -39,6 +39,15 @@ pub struct Apply {
     pub peer: Option<String>,
 }
 
+/// What `fleet admit` reads on standard input: the joining computer's
+/// bundle and its signature over [`super::Bundle::join_message`],
+/// base64url, as [`Ask::Admit`] takes them, admitted over SSH.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct Admission {
+    pub bundle: String,
+    pub signature: String,
+}
+
 /// An answering computer's proof that it is the host its certificate
 /// names: its certificate authority's certificate and key, and that key's
 /// signature over [`proof_message`], all base64url.

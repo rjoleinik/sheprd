@@ -1,4 +1,4 @@
-use super::{Palette, config, mix};
+use crate::luau_window::theme::{Palette, config, mix};
 
 fn palette(dark: bool) -> Palette {
     Palette {
@@ -41,4 +41,20 @@ fn text_takes_the_windows_foreground_and_muted_colors() {
 fn the_mode_follows_the_palette() {
     assert!(config(&palette(true)).mode.is_dark());
     assert!(!config(&palette(false)).mode.is_dark());
+}
+
+#[test]
+fn native_pages_have_a_clear_root_but_solid_chrome_in_both_modes() {
+    for dark in [false, true] {
+        let config = config(&palette(dark));
+        let background = if cfg!(target_os = "macos") {
+            "#00000000"
+        } else {
+            "#101419"
+        };
+        assert_eq!(config.colors.background.as_deref(), Some(background));
+        assert_eq!(config.colors.popover.as_deref(), Some("#1c1c22"));
+        assert_eq!(config.colors.sidebar.as_deref(), Some("#1c1c22"));
+        assert_eq!(config.colors.primary_foreground.as_deref(), Some("#101419"));
+    }
 }

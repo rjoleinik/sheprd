@@ -146,6 +146,16 @@ fn remote_rich_document_link_never_opens_an_identically_named_local_file(cx: &mu
     );
     cx.run_until_parked();
     assert!(cx.opened_url().is_none());
+    let file = cx.debug_bounds("chat-file-open").unwrap();
+    cx.simulate_click(file.center(), Modifiers::default());
+    cx.run_until_parked();
+    assert!(
+        cx.opened_url().is_none(),
+        "remote cards cannot open local files"
+    );
 }
 
+mod attachments;
 mod markdown;
+
+mod thumbnails;

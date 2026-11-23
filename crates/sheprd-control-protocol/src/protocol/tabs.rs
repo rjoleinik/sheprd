@@ -127,6 +127,14 @@ pub enum TabOp {
         modifiers: Vec<MachineModifier>,
     },
     MachineList,
+    /// Reserve a virtual Mac for this pane, or renew its reservation.
+    MachineClaim {
+        name: String,
+    },
+    /// Release only this pane's reservation.
+    MachineRelease {
+        name: String,
+    },
     /// Make the virtual Mac called `name` from image `image`. Without an
     /// image, open Settings > Virtual Macs, where the user confirms making
     /// one from Apple's macOS (named `name`, if given).
@@ -208,6 +216,8 @@ impl TabOp {
             | Self::MachineImageDelete { .. }
             | Self::MachineImageList
             | Self::MachineImageSave { .. }
+            | Self::MachineClaim { .. }
+            | Self::MachineRelease { .. }
             | Self::MachineList
             | Self::MachineNew { .. }
             | Self::MachineSet { .. }
@@ -348,6 +358,8 @@ pub enum Reply {
     },
     Machines {
         machines: Vec<MachineInfo>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        capacity: Option<MachineCapacity>,
     },
     MachineImages {
         images: Vec<MachineImageInfo>,
@@ -404,9 +416,34 @@ impl MachineState {
     }
 }
 
+/// Sheprd's simultaneous macOS VM limit on this computer.
+pub const MAX_ACTIVE_MACHINES: u32 = 2;
+
+/// Slots occupied by Sheprd VMs, including starting and saving machines.
+/// Other applications' VMs are not observable through this count.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MachineCapacity {
+    pub in_use: u32,
+    pub limit: u32,
+    pub available: u32,
+}
+
+impl MachineCapacity {
+    pub fn new(in_use: u32) -> Self {
+        Self {
+            in_use,
+            limit: MAX_ACTIVE_MACHINES,
+            available: MAX_ACTIVE_MACHINES.saturating_sub(in_use),
+        }
+    }
+}
+
 /// A virtual Mac installed on this computer.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MachineInfo {
+    /// Active reservation, absent when available.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reservation: Option<String>,
     pub name: String,
     pub state: MachineState,
     /// What it boots with next.

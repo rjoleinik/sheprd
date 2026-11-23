@@ -25,7 +25,10 @@ import Security
 /// and never given to a computer: the phone seals the test pushes it sends
 /// itself through the push relay to it (`SelfTestPush`). It is never among
 /// the computers' keys, so nothing it opens counts as from a computer, and
-/// what it opens is taken only as a self test, which has no actions.
+/// what it opens is taken only as a self test, which has no actions. The
+/// widget opens the Live Activity the phone starts on itself with it
+/// (`SelfTestActivity`), so while the push relay is on it is kept in its own
+/// App Group file too, apart from the computers' keys.
 enum NotifyKey {
     static let group = "group.so.pen.herdr.remote"
 
@@ -97,7 +100,33 @@ enum NotifyKey {
         if let key = try loadOwn() { return key }
         let key = try newKey()
         try write(key.data, to: query(ownAccount))
+        try writeFile(key.data, to: ownFile)
         return key
+    }
+
+    /// Opens a test Live Activity (`SelfTestActivity`) with this phone's
+    /// own key: from the keychain, or from the App Group file where the
+    /// keychain refuses this process. `nil` when there is no key or it does
+    /// not open as a test.
+    static func openSelfTest(
+        attributes: ActivitySealable<ChatActivityFacts>,
+        state: ActivitySealable<ChatActivityState>
+    ) -> SealedChatActivity.Opened? {
+        let key: Stored?
+        do {
+            key = try loadOwn()
+        } catch Failure.keychain {
+            key = try? loadOwnFile()
+        } catch {
+            key = nil
+        }
+        guard let key else { return nil }
+        return SelfTestActivity.open(attributes: attributes, state: state, device: key.publicKey, agree: key.agree)
+    }
+
+    private static func loadOwnFile() throws -> Stored? {
+        guard let ownFile, FileManager.default.fileExists(atPath: ownFile.path) else { return nil }
+        return try Stored(Data(contentsOf: ownFile))
     }
 
     private static func loadOwn() throws -> Stored? {
@@ -177,6 +206,12 @@ enum NotifyKey {
             .appending(path: "notify-keys.json")
     }
 
+    /// This phone's own key's file, apart, so it is never a computer's.
+    private static var ownFile: URL? {
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group)?
+            .appending(path: "notify-own-key")
+    }
+
     private static func decode(_ data: Data) throws -> [Fingerprint: Stored] {
         let stored = try JSONDecoder().decode([String: Data].self, from: data)
         var keys: [Fingerprint: Stored] = [:]
@@ -195,15 +230,17 @@ enum NotifyKey {
     /// can always read: written while the push relay is on, removed while
     /// it is off. The app calls it at launch and when the setting changes.
     static func mirror() throws {
-        guard let file else { return }
         guard PushRelaySetting.isOn else {
-            if FileManager.default.fileExists(atPath: file.path) { try FileManager.default.removeItem(at: file) }
+            for file in [file, ownFile].compactMap(\.self) where FileManager.default.fileExists(atPath: file.path) {
+                try FileManager.default.removeItem(at: file)
+            }
             return
         }
-        try writeFile(encoded(try loadAll()))
+        try writeFile(encoded(try loadAll()), to: file)
+        if let own = try loadOwn() { try writeFile(own.data, to: ownFile) }
     }
 
-    private static func writeFile(_ data: Data) throws {
+    private static func writeFile(_ data: Data, to file: URL?) throws {
         guard let file, PushRelaySetting.isOn else { return }
         guard (try? Data(contentsOf: file)) != data else { return }
         try data.write(to: file, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
@@ -218,7 +255,7 @@ enum NotifyKey {
     private static func save(_ keys: [Fingerprint: Stored]) throws {
         let data = try encoded(keys)
         try write(data, to: query())
-        try writeFile(data)
+        try writeFile(data, to: file)
     }
 
     private static func write(_ data: Data, to query: [String: Any]) throws {

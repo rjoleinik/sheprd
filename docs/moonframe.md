@@ -72,6 +72,12 @@ terminals. The terminals keep the keyboard: they take it when the window opens
 or comes back to the front, and after a click anywhere in the layout, so only
 a field (the search, a note) holds it instead.
 
+On macOS native browser pages sit below GPUI. The toolkit root background and
+Luau shell must stay transparent; the native window supplies the base and
+Sheprd's main region paints around page rectangles. Sidebar, toolbar and
+popover backgrounds remain solid. Adding a full-window background to the shell
+hides loaded pages, even when WebKit text and page captures look correct.
+
 ## Changing it
 
 In `just run-moonframe`, saving a file reloads the window. To keep a change of
@@ -194,3 +200,54 @@ terminal output, agents changing state, and focusing each workspace, and
 prints the medians of three rounds. It opens windows, so it needs a desktop.
 `scripts/bench_frames.py` takes other commands (`NAME=BINARY ARGS...`), round
 counts, and `--json`.
+
+For terminal stalls, use `scripts/bench_terminal.py` in a Sheprd internal
+virtual Mac (`sheprd machine exec NAME -- ...`), with the guest logged in,
+awake, and its agent allowed Accessibility and screen capture. Copy the
+release binary, Herdr, both benchmark Python files, and this native wheel
+helper into the guest; Python 3.10+ and Git must be on its `PATH`:
+
+```sh
+swiftc scripts/bench_terminal_scroll.swift -o /tmp/bench-terminal-scroll
+python3 scripts/bench_terminal.py --app /path/to/sheprd --herdr /path/to/herdr \
+  --scroll /tmp/bench-terminal-scroll --results /tmp/terminal-benchmark
+```
+
+The helper can be compiled on the host. It requires macOS, Accessibility,
+and screen point `(700, 450)` inside the terminal. Each fresh private daemon
+has 14 linked worktrees; no personal sessions are used. The harness focuses
+and sizes the app to 1000×650, checks it is active, and alternates classic
+and Moonframe over three rounds. It measures idle, steady output, heavy
+output, and native scrolling through 3,000 lines, with two seconds of warmup
+and 12 seconds measured per phase. `--scroll-only` or `--steady-only` narrows
+the workload; `--output-only` measures steady and heavy output together.
+`--modes moonframe` isolates one mode when comparing binaries.
+
+Keep the VM tab visible and the guest unobscured by permission dialogs;
+a hidden virtual display can stop delivering frame callbacks even when the
+guest window reports itself active. Failed commands, inactive
+windows, failed wheel injection, and unchanged measured scroll positions reject a
+run. The harness samples the daemon's scroll offset every half second during
+measurement and saves `scroll-samples.json`; warmup movement alone is not
+enough. This readback adds a small amount of measurement overhead. Wheel
+input and optional pixel capture use `--until-eof`: the harness closes their
+stdin only after measurement ends, so setup delays cannot shorten their run.
+An early helper exit rejects the run, even if its exit code is zero.
+Each run saves screenshots, status, synthetic terminal readback, logs,
+frame timestamps, and `result.json`. Compare redraw rates **and** maximum
+silence, including the measurement boundaries: a frozen UI can report cheap
+frames precisely because it did not draw. These are frame-processing times
+and redraw counts, not input-to-photon latency. Repeat before/after pairs
+on the same VM without concurrent builds or other workloads before judging
+small timing differences.
+
+Window redraws alone can also replay stale terminal pixels. To check the
+content itself, compile `scripts/bench_terminal_pixels.swift` with
+`swiftc -O -parse-as-library` and pass its executable as `--pixels PATH`
+alongside `--scroll`. This separate ScreenCaptureKit probe observes the
+numbered text at `(560, 220, 100, 300)` in display points, at up to 60 Hz.
+It records a change when more than 0.5% of pixels differ by over 8 channel
+levels, rejecting capture noise. `pixel_change_hz` and
+`pixel_max_silence_ms` describe that region, not input-to-photon latency.
+The first 100×300 BGRA frame is saved so the region can be checked. Compare
+pixel-probed runs separately from uninstrumented timings: capture adds work.

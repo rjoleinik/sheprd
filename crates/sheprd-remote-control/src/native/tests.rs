@@ -19,6 +19,7 @@ mod live_chat;
 mod messages;
 mod pane_job;
 mod pictures;
+mod project;
 mod projection;
 mod pull_request_fixture;
 mod reducer;

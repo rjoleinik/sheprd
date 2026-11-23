@@ -2,9 +2,10 @@
 
 use serde_json::{Value, json};
 
-use super::*;
+use crate::codex::bridge::*;
 use crate::harness::tests::{file_name, file_uri};
 
+mod attachments;
 mod background;
 mod command_output;
 mod launch_policy;
@@ -193,7 +194,10 @@ fn a_prompt_starts_a_turn_with_the_chosen_settings() {
     assert_eq!(params["input"][1]["url"], "data:image/png;base64,iVBOR");
     assert_eq!(
         params["input"][2],
-        json!({"type": "mention", "name": "a.rs", "path": file_name("a.rs")})
+        json!({"type": "text", "text": format!(
+            "Attached file: \"a.rs\"\nLocation: {}\nThe file contents were not embedded. Use available tools to inspect this attachment.",
+            json!(file_name("a.rs")),
+        ), "text_elements": []})
     );
     let unknown = bridge.on_session(request(
         7,

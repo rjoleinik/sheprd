@@ -47,6 +47,7 @@ mod sidebar;
 mod spaces;
 mod split;
 mod start;
+mod starting;
 mod tabs;
 #[cfg(test)]
 mod testing;
@@ -73,7 +74,7 @@ pub(crate) use workspaces::kept_label;
 
 use crate::{
     SheprdWindow,
-    browser::{Location, Scope, Store, TabId},
+    browser::{Location, Scope, TabId},
     i18n::fl,
     window::Flash,
 };
@@ -98,7 +99,11 @@ type Started = std::sync::mpsc::Receiver<start::Outcome>;
 #[derive(Clone, Debug)]
 pub(crate) enum Purpose {
     /// A new tab in a workspace.
-    Tab { scope: Scope, workspace: String },
+    Tab {
+        scope: Scope,
+        workspace: String,
+        group: Option<crate::browser::GroupId>,
+    },
     /// A new pane beside `at` in a tab.
     Split {
         tab: TabId,
@@ -626,15 +631,28 @@ impl SheprdWindow {
             return;
         };
         self.dismiss_menu(window, cx);
-        // A kept workspace's folder is the app's to give: herdr-core knows
-        // no workspaces to start a shell in.
+        // Follow the shown terminal, or the workspace's live folder when
+        // a new split group has no terminal to inherit from.
         let spawn = Spawn {
             cwd: self
-                .kept_in_front()
-                .and_then(|_| self.front_workspace_cwd()),
+                .shown_core_pane(cx)
+                .and_then(|(tab, terminal)| self.core_terminals.info(tab, &terminal))
+                .and_then(|info| info.cwd.clone())
+                .or_else(|| {
+                    self.kept_in_front()
+                        .and_then(|_| self.front_workspace_cwd())
+                }),
             ..Spawn::default()
         };
-        self.start_core_program(Purpose::Tab { scope, workspace }, spawn, cx);
+        self.start_core_program(
+            Purpose::Tab {
+                group: None,
+                scope,
+                workspace,
+            },
+            spawn,
+            cx,
+        );
     }
 
     /// Starts `spawn` in herdr-core for `purpose`, once the hub of its
@@ -650,7 +668,7 @@ impl SheprdWindow {
     /// removed if the start fails or the request is dropped.
     pub(crate) fn start_core_program_with(
         &mut self,
-        purpose: Purpose,
+        mut purpose: Purpose,
         mut spawn: Spawn,
         file: Option<tempfile::TempPath>,
         cx: &App,
@@ -658,6 +676,16 @@ impl SheprdWindow {
         if self.core_terminals.wanted.len() >= MAX_WANTED {
             tracing::warn!("Too many herdr-core terminals waiting to start; dropped one");
             return false;
+        }
+        if let Purpose::Tab {
+            scope,
+            workspace,
+            group,
+        } = &mut purpose
+            && group.is_none()
+            && self.browser_key().as_ref() == Some(&(scope.clone(), workspace.clone()))
+        {
+            *group = self.active_group();
         }
         let host = self.purpose_host(&purpose);
         let Some(hub) = self.core_hub(&host) else {
@@ -675,7 +703,7 @@ impl SheprdWindow {
     /// The core a terminal started for `purpose` runs in, read once as it is
     /// asked for: a tab closed while it starts must not send its terminal
     /// to another core.
-    fn purpose_host(&self, purpose: &Purpose) -> Host {
+    pub(crate) fn purpose_host(&self, purpose: &Purpose) -> Host {
         match purpose {
             Purpose::Tab { scope, .. } => Host::of(scope),
             Purpose::Split { tab, .. } => self.core_terminals.host_of(*tab),
@@ -831,65 +859,6 @@ impl SheprdWindow {
         {
             cx.notify();
         }
-    }
-
-    fn place_started_core_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some((_, _, started)) = &self.core_terminals.starting else {
-            return;
-        };
-        let outcome = match started.try_recv() {
-            Ok(outcome) => outcome.take(),
-            Err(std::sync::mpsc::TryRecvError::Empty) => return,
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                self.core_terminals.starting = None;
-                return;
-            }
-        };
-        let Some((purpose, host, _)) = self.core_terminals.starting.take() else {
-            return;
-        };
-        let info = match outcome {
-            // Known at once, so a chat it labels attaches without waiting
-            // for the next list.
-            Ok(info) => match self.core_terminals.infos_of_mut(&host) {
-                Some(infos) => infos.insert(info),
-                None => info,
-            },
-            Err(error) => {
-                let reason = error.to_string();
-                self.show_flash(
-                    Flash::warning(fl!("core-terminals-start-failed", reason = reason)),
-                    cx,
-                );
-                return;
-            }
-        };
-        match purpose {
-            // The kept workspace it was for closed while it started: end it
-            // rather than leave a shell no tab shows.
-            Purpose::Tab { scope, workspace }
-                if self.kept_workspace_gone(&scope, &workspace, cx) =>
-            {
-                self.end_core_terminal(&host, info.id);
-            }
-            Purpose::Tab { scope, workspace } => {
-                let terminal = info.id.clone();
-                let location = Location::core_terminal(Panes::single(info.id), false);
-                let Some(id) = Store::update(cx, |store| {
-                    store.open(scope, &workspace, Some(location), None)
-                }) else {
-                    self.end_core_terminal(&host, terminal);
-                    self.show_flash(Flash::warning(fl!("core-terminals-too-many-tabs")), cx);
-                    return;
-                };
-                self.sync_core_views(cx);
-                self.show_browser_tab(id, window, cx);
-            }
-            Purpose::Split { tab, at, axis } => {
-                self.place_split(tab, &at, axis, (host, info.id), window, cx)
-            }
-        }
-        cx.notify();
     }
 
     /// Gives a herdr-core tab's active pane the keyboard as the tab is

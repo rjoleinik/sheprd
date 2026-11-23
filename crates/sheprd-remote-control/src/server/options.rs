@@ -192,6 +192,13 @@ pub enum FleetAction {
     Intro,
     /// Forgets the fleet here and the lines and records it wrote.
     Scrub,
+    /// Prints the fleet as this computer's daemon keeps it, for a computer
+    /// in no fleet deciding whether to join it.
+    Status,
+    /// Takes a computer's bundle and signature on standard input
+    /// (`control::fleet::sync::Admission`) and admits it: the person who
+    /// asked reaches this account over SSH, which proves they control it.
+    Admit,
 }
 
 pub const USAGE: &str = "\
@@ -209,6 +216,8 @@ Usage: sheprd-remote-control serve --state-dir DIR [options]
        sheprd-remote-control fleet bundle --fleet ID [--state-dir DIR]
        sheprd-remote-control fleet intro [--state-dir DIR]
        sheprd-remote-control fleet scrub [--state-dir DIR]
+       sheprd-remote-control fleet status [--state-dir DIR]
+       sheprd-remote-control fleet admit [--state-dir DIR] < ADMISSION.json
        sheprd-remote-control desktop-pair --name NAME [--link] [--state-dir DIR]
        sheprd-remote-control relay-connect [--state-dir DIR] HOST
 
@@ -282,6 +291,9 @@ this computer as a host, signed by its certificate authority, for a
 member about to share it; scrub forgets the fleet here, with the
 authorized_keys lines and relay records it wrote, without signing
 anything: for a computer the fleet removed, or a fleet that is gone.
+status prints the fleet this computer is in, and admit admits the
+computer whose signed bundle it reads, for a computer in no fleet whose
+Sheprd reaches this one over SSH and joins its fleet.
 Their state directory defaults to the one Sheprd on this computer uses.
 ";
 
@@ -596,12 +608,14 @@ fn parse_desktop(
     })
 }
 
-/// `fleet apply|bundle [--fleet ID] [--state-dir DIR]`.
+/// `fleet apply|bundle|intro|scrub|status|admit [--fleet ID] [--state-dir DIR]`.
 fn parse_fleet(mut args: impl Iterator<Item = OsString>) -> Result<Invocation, ParseError> {
     let verb = args
         .next()
         .and_then(|verb| verb.to_str().map(str::to_owned))
-        .ok_or(ParseError::Missing("apply, bundle, intro, or scrub"))?;
+        .ok_or(ParseError::Missing(
+            "apply, bundle, intro, scrub, status, or admit",
+        ))?;
     let (mut state_dir, mut fleet) = (None, None);
     while let Some(arg) = args.next() {
         let name = arg.to_str().unwrap_or_default().to_owned();
@@ -630,6 +644,8 @@ fn parse_fleet(mut args: impl Iterator<Item = OsString>) -> Result<Invocation, P
         "apply" if fleet.is_none() => FleetAction::Apply,
         "intro" if fleet.is_none() => FleetAction::Intro,
         "scrub" if fleet.is_none() => FleetAction::Scrub,
+        "status" if fleet.is_none() => FleetAction::Status,
+        "admit" if fleet.is_none() => FleetAction::Admit,
         "bundle" => FleetAction::Bundle {
             fleet: fleet.ok_or(ParseError::Missing("--fleet"))?,
         },

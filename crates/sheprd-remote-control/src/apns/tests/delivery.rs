@@ -126,6 +126,7 @@ async fn during_an_outage_pushes_are_dropped_without_a_call() {
         event: Event::Update { alert: None },
         pane: "w1-p3".to_owned(),
         state: ContentState {
+            detail: Default::default(),
             options: Vec::new(),
             permission: None,
             phase: Phase::Working,
@@ -161,6 +162,7 @@ async fn a_relayed_activity_needs_the_phones_key() {
                 event: Event::End { dismissal_s: 0 },
                 pane: "w1-p3".to_owned(),
                 state: ContentState {
+                    detail: Default::default(),
                     options: Vec::new(),
                     permission: None,
                     phase: Phase::Finished,

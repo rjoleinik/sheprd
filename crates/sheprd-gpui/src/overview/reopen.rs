@@ -236,7 +236,11 @@ impl SheprdWindow {
             ..sheprd_backend::Spawn::default()
         };
         self.start_core_program(
-            crate::core_terminals::Purpose::Tab { scope, workspace },
+            crate::core_terminals::Purpose::Tab {
+                group: None,
+                scope,
+                workspace,
+            },
             spawn,
             cx,
         );

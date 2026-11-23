@@ -30,7 +30,7 @@ fn imessage_prose_inherits_its_bubble_while_rich_surfaces_keep_theme_ink(cx: &mu
                 &geometry,
             );
             let mut prose = view.render_chat_rich(
-                "fixture",
+                ("fixture", links::Mode::Configured),
                 &[],
                 &visuals,
                 &selection,
@@ -139,7 +139,7 @@ fn imessage_prose_inherits_its_bubble_while_rich_surfaces_keep_theme_ink(cx: &mu
 
             view.config.chat.layout = ChatLayoutMode::Document;
             let mut prose = view.render_chat_rich(
-                "fixture",
+                ("fixture", links::Mode::Configured),
                 &[],
                 &visuals,
                 &selection,

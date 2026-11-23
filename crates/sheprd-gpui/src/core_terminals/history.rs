@@ -169,7 +169,11 @@ pub(super) fn editor_purpose(
         Some(_) => workspace,
         None => current,
     };
-    key.map(|(scope, workspace)| Purpose::Tab { scope, workspace })
+    key.map(|(scope, workspace)| Purpose::Tab {
+        group: None,
+        scope,
+        workspace,
+    })
 }
 
 /// Saves `text` to a file only the user can read. The file is removed when

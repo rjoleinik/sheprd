@@ -17,12 +17,13 @@ const IDLE: Duration = Duration::from_secs(20);
 /// to put a daemon on it, and with no phone paired there no one else reads
 /// its tags. An older build refuses `tags`, which prints nothing too. Standard
 /// input is drained so the sender is never left writing to no one.
-pub(crate) const SCRIPT: &str = "\
-program=$(command -v sheprd-remote-control || command -v herdr-remote-control || true)
-[ -n \"$program\" ] || program=\"$HOME/.local/bin/sheprd-remote-control\"
+pub(crate) const SCRIPT: &str = concat!(
+    crate::remote::program::find_program!(),
+    "\
 if [ -x \"$program\" ]; then \"$program\" tags --offer 2>/dev/null || true; fi
 cat >/dev/null
-";
+"
+);
 
 /// Where a device's daemon is reached.
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -37,9 +37,12 @@ pub(crate) use {
     settings::{Display, Limits, Patch, Settings},
     store::{
         Listing, discard_state, drain_settings, list, queue_settings, queued_settings,
-        update_settings,
+        resolve_name, update_settings,
     },
-    vm::{Status, delete, release, running, save_image, shut_down, start, status, suspend, view},
+    vm::{
+        Status, capacity, check_capacity, delete, release, running, save_image, shut_down, start,
+        status, suspend, view,
+    },
 };
 
 use serde::{Deserialize, Serialize};

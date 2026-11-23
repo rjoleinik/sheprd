@@ -195,11 +195,19 @@ impl SheprdWindow {
     #[cfg(target_os = "macos")]
     pub(crate) fn render_machines_status(&self, cx: &mut Context<Self>) -> Option<Stateful<Div>> {
         let running = crate::machine::running();
+        let capacity = crate::machine::capacity();
         let label = match running.as_slice() {
+            [] if capacity.in_use > 0 => fl!("machine-status-installing"),
             [] => return None,
             [only] => fl!("machine-status-one", name = only.as_str()),
             many => fl!("machine-status-many", count = many.len()),
         };
+        let label = fl!(
+            "machine-status-capacity",
+            label = label,
+            in_use = capacity.in_use,
+            limit = capacity.limit
+        );
         let source = cx.entity().downgrade();
         Some(
             div()

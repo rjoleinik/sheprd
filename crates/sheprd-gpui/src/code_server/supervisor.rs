@@ -6,8 +6,8 @@
 //!
 //! A supervisor exists only once the user accepted VS Code's server license
 //! in the app, since the child is started with `--accept-server-license-terms`.
-use super::{Error, Server, token::Token};
 use crate::browser::WebUrl;
+use crate::code_server::{Error, Server, token::Token};
 use std::{
     fmt,
     io::ErrorKind,
@@ -58,7 +58,7 @@ pub(crate) enum Status {
     /// the first start downloads the server, which takes a while.
     Starting,
     /// VS Code answered at the address.
-    Ready,
+    Ready(Server),
     /// The last start failed, or VS Code stopped; it starts again at `retry`.
     Failed {
         error: Arc<crate::Error>,
@@ -239,8 +239,8 @@ impl Supervisor {
             plan,
             |plan, port| {
                 if let Some(home) = sheprd_client::local_path::home_dir() {
-                    let settings = super::machine::path(&home);
-                    if let Err(error) = super::machine::seed(&settings) {
+                    let settings = crate::code_server::machine::path(&home);
+                    if let Err(error) = crate::code_server::machine::seed(&settings) {
                         tracing::warn!(%error, "Could not write VS Code's machine settings");
                     }
                 }
@@ -248,8 +248,8 @@ impl Supervisor {
                 crate::login_env::apply(&mut command);
                 Ok(command)
             },
-            // Never the token: the app wrote the file the server reads it from.
-            super::version,
+            // The readiness marker proves the child owns the port before authentication.
+            crate::code_server::version,
             |port| crate::config::Config::save_code(crate::config::CodeEdit::Port(port)),
             Timing::default(),
         )
@@ -343,7 +343,7 @@ impl Supervisor {
     #[cfg(all(test, any(target_os = "macos", windows)))]
     pub(crate) fn report_as(&self, status: Status, address: Option<Address>) {
         self.shared.publish(|slot| {
-            slot.stand_in_ready = matches!(status, Status::Ready);
+            slot.stand_in_ready = matches!(status, Status::Ready(_));
             slot.status = Some(status);
             slot.address = address;
         });
@@ -460,7 +460,7 @@ where
                     .plan
                     .host
                     .as_deref()
-                    .and_then(super::host::preferred_port)
+                    .and_then(crate::code_server::host::preferred_port)
                 {
                     Some(port) => port,
                     None => free_port()?,
@@ -473,13 +473,14 @@ where
                 port
             }
         };
-        let host = self
-            .plan
-            .host
-            .as_deref()
-            .map_or_else(|| "127.0.0.1".to_owned(), super::host::page_host);
-        if self.plan.host.is_some() && super::host::resolves_elsewhere(&host, port) {
-            return Err(Error::from(super::host::Error::NotLoopback { name: host }).into());
+        let host = self.plan.host.as_deref().map_or_else(
+            || "127.0.0.1".to_owned(),
+            crate::code_server::host::page_host,
+        );
+        if self.plan.host.is_some() && crate::code_server::host::resolves_elsewhere(&host, port) {
+            return Err(
+                Error::from(crate::code_server::host::Error::NotLoopback { name: host }).into(),
+            );
         }
         let url = WebUrl::try_from(format!("http://{host}:{port}/?tkn={}", token.as_str()))?;
         let address = Address { port, url };
@@ -571,7 +572,9 @@ where
                     self.shared
                         .publish(|slot| slot.status = Some(Status::Starting));
                     let error = match self.shared.end(self.timing.grace) {
-                        Some(Ok(status)) if self.plan.host.is_some() => super::host::exited(status),
+                        Some(Ok(status)) if self.plan.host.is_some() => {
+                            crate::code_server::host::exited(status)
+                        }
                         Some(Ok(status)) => Error::Exited(status),
                         Some(Err(source)) => Error::Watch(source),
                         // Taken by a shutdown, which stopped it.
@@ -591,12 +594,12 @@ where
                 // Alive before the question and after the answer: a live
                 // serve-web holds its port, so the answer was its own.
                 if listening.load(Ordering::Acquire)
-                    && (self.probe)(&address.url).is_ok()
+                    && let Ok(server) = (self.probe)(&address.url)
                     && self.shared.alive()
                 {
                     answered = Some(Instant::now());
                     self.shared
-                        .publish(|slot| slot.status = Some(Status::Ready));
+                        .publish(|slot| slot.status = Some(Status::Ready(server)));
                 } else if started.elapsed() >= self.timing.ready_timeout {
                     self.shared.end(self.timing.grace);
                     return failed(Error::Silent(self.timing.ready_timeout));

@@ -43,7 +43,11 @@ case "$round" in
      ipad="" ;;
   briefmix) phone="brief-Mix-0 brief-Mix-1"
      ipad="" ;;
+  newproj) phone="newproj-Menu-0 newproj-A-0 newproj-A-1 newproj-B-0 newproj-B-1 newproj-C-0 newproj-D-0"
+     ipad="" ;;
   effects) phone="effects-Sizes-0 effects-Bubbles-0 effects-Bubbles-1 effects-Screen-0 effects-Screen-1 effects-Screen-2 effects-Screen-3"
+     ipad="" ;;
+  live) phone="live-Now-0 live-A-0 live-B-0 live-C-0 live-D-0 live-Now-1 live-A-1 live-B-1 live-C-1 live-D-1 live-Pick-0"
      ipad="" ;;
   *) echo "unknown round $round" >&2; exit 2 ;;
 esac

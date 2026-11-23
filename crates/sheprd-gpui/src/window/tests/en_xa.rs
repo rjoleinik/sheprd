@@ -28,6 +28,12 @@ fn snapshot_names(snapshot: &ClientShellSnapshot) -> Vec<String> {
                 .map(|worktree| worktree.label.clone()),
         );
         if let Some(branch) = &workspace.branch {
+            let repository = workspace
+                .worktree
+                .as_ref()
+                .filter(|worktree| !worktree.label.is_empty())
+                .map_or(workspace.label.as_str(), |worktree| worktree.label.as_str());
+            names.push(crate::sidebar::repository_initials(repository));
             names.push(branch.clone());
             names.extend(branch.rsplit('/').next().map(str::to_owned));
         }

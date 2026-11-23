@@ -191,6 +191,7 @@ impl Localize for visual::Error {
             Self::NotAnImage => fl!("error-chat-visual-not-an-image"),
             Self::Panicked => fl!("error-chat-visual-panicked"),
             Self::Raster(_) => fl!("error-chat-visual-raster"),
+            Self::Thumbnail(_) => fl!("error-chat-visual-thumbnail"),
             // keep-sorted end
         }
     }

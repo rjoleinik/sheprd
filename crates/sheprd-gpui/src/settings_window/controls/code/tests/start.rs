@@ -124,7 +124,9 @@ fn the_server_state_names_its_port_and_never_its_token(cx: &mut TestAppContext) 
             cx,
             Some(Report {
                 revision: 1,
-                status: Status::Ready,
+                status: Status::Ready(
+                    Server::from_version("2a59476c9bfcb90b3ddc372c36762471b7dfad1c").unwrap(),
+                ),
                 address: Some(Address {
                     port: std::num::NonZeroU16::new(51234).unwrap(),
                     url: WebUrl::try_from("http://127.0.0.1:51234/?tkn=secret").unwrap(),
@@ -137,7 +139,7 @@ fn the_server_state_names_its_port_and_never_its_token(cx: &mut TestAppContext) 
     assert!(cx.debug_bounds("settings-code-license").is_none());
     let shown = cx.update(
         |_, cx| match Launcher::startup(cx, &view.read(cx).config.code) {
-            code_server::Startup::Ready { url } => format!("Running on {}", url.address()),
+            code_server::Startup::Ready { url, .. } => format!("Running on {}", url.address()),
             other => panic!("{other:?}"),
         },
     );

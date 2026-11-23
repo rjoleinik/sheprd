@@ -71,7 +71,7 @@ fn multi_host_rows_scope_duplicate_ids_and_keep_agents_when_host_collapses(
     ] {
         let icon = cx.debug_bounds(icon).unwrap();
         let title = cx.debug_bounds(title).unwrap();
-        assert_eq!(icon.size, size(px(12.), px(12.)));
+        assert_eq!(icon.size, size(px(16.), px(16.)));
         assert_eq!(title.left(), icon.right() + px(6.));
         // Rows under a host header step in by the nest indent, which the
         // label gives up.

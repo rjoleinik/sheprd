@@ -25,7 +25,10 @@
 //! does not let an app choose. `question`, `permission`, and `options` (the
 //! answer buttons, `{id, kind, name}`) appear in the question phase,
 //! `summary` in the finished one, and `previous` (the steps before `step`)
-//! once there are some; every optional key may be absent.
+//! once there are some. For the phone's styles, `activity` says the step in
+//! words with an `icon` kind, `previousActivities` the steps before it, and
+//! `steps` and `files` count the turn's tool calls and edited files; every
+//! optional key may be absent.
 
 use super::Priority;
 #[cfg(test)]
@@ -56,6 +59,48 @@ pub(crate) enum Phase {
     // keep-sorted end
 }
 
+/// What kind of step the activity shows, so the phone can draw an icon
+/// for it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum Icon {
+    // keep-sorted start
+    Agent,
+    Build,
+    Edit,
+    Git,
+    Github,
+    Plan,
+    Read,
+    Run,
+    Search,
+    Test,
+    Think,
+    Web,
+    // keep-sorted end
+}
+
+/// The step told for the phone's styles (`apns::activity`): an older app
+/// ignores these keys and shows `step`.
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct Detail {
+    /// `step` in plain words, such as `Checking pull request #1548`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) activity: Option<String>,
+    /// Files the turn's edits touched.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) files: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) icon: Option<Icon>,
+    /// `previous` in plain words, in the same order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(crate) previous_activities: Vec<String>,
+    /// Tool calls the turn made so far.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) steps: Option<u32>,
+}
+
 /// The activity's fixed part, set when it starts.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -81,6 +126,8 @@ pub(crate) struct Attributes {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ContentState {
+    #[serde(flatten)]
+    pub(crate) detail: Detail,
     /// The waiting permission's first [`MAX_BUTTONS`] options, in the
     /// question phase, for the lock screen's answer buttons.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -102,7 +149,7 @@ pub(crate) struct ContentState {
     pub(crate) question: Option<String>,
     /// When the turn started, in seconds since the Unix epoch.
     pub(crate) started_at: u64,
-    /// The current tool call or plan step.
+    /// The current tool call, with a shell wrapper taken off, or plan step.
     pub(crate) step: String,
     /// How the turn ended, in the finished and failed phases.
     #[serde(default, skip_serializing_if = "Option::is_none")]

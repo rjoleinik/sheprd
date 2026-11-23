@@ -46,8 +46,9 @@ pub(super) const MAX_PARTS: usize = saved::MAX_SAVED.div_ceil(sync::MAX_ANSWER_B
 /// Asks `target` for what this computer lacks, from `heads`, naming no
 /// fleet and with a fresh nonce: its answer, when it proves it is one of
 /// `hosts` (the fleet's computers and Sheprd hosts) in `fleet`, with the
-/// host it proved to be; `None` for a machine outside it, which learns
-/// nothing.
+/// host it proved to be; `None` for one that does not prove it, which
+/// learns nothing; [`Error::NotInFleet`] for a machine in no fleet, and
+/// [`Error::OtherFleet`] for one in another.
 async fn ask_proven(
     executor: &BackgroundExecutor,
     target: &ConnectTarget,
@@ -70,7 +71,8 @@ async fn ask_proven(
         Ok(theirs) if theirs.fleet == fleet => {
             Ok(sync::proven_host(&theirs, &nonce, hosts).map(|host| (theirs, host)))
         }
-        Ok(_) => Ok(None),
+        Ok(theirs) if theirs.fleet.is_empty() => Err(Error::NotInFleet),
+        Ok(_) => Err(Error::OtherFleet),
         // A machine with no Sheprd daemon: the caller decides.
         Err(error) => Err(error),
     }
@@ -218,6 +220,25 @@ pub(super) fn sync(cx: &mut App, id: String, machine: Machine, fleet: String) {
                         proven_as = host;
                         return Ok((standing, Vec::new(), view.heads.clone()));
                     }
+                    // Sheprd in no fleet: a computer to invite, unless it
+                    // is also a plain host of this fleet, whose agent is
+                    // still kept current.
+                    Err(Error::NotInFleet) => {
+                        let (standing, host) =
+                            super::plain::sync(&client, &executor, &machine, &view).await?;
+                        proven_as = host;
+                        return Ok((beside_daemon(standing), Vec::new(), view.heads.clone()));
+                    }
+                    // A host the fleet removed that is in another fleet
+                    // now has forgotten this one.
+                    Err(Error::OtherFleet) => {
+                        let standing = if was.as_ref().is_some_and(|host| removed.contains(host)) {
+                            Standing::Removed
+                        } else {
+                            Standing::Elsewhere
+                        };
+                        return Ok((standing, Vec::new(), Vec::new()));
+                    }
                     answered => answered?,
                 };
             let Some((mut theirs, proven)) = answered else {
@@ -257,7 +278,8 @@ pub(super) fn sync(cx: &mut App, id: String, machine: Machine, fleet: String) {
                 let (next, again) =
                     match ask_proven(&executor, target, ours.heads.clone(), &fleet, &hosts).await {
                         Ok(Some(answer)) => answer,
-                        Ok(None) | Err(Error::NoProgram) => {
+                        Ok(None)
+                        | Err(Error::NoProgram | Error::NotInFleet | Error::OtherFleet) => {
                             return Ok((Standing::Outside, Vec::new(), Vec::new()));
                         }
                         Err(error) => return Err(error),
@@ -341,6 +363,16 @@ pub(super) fn sync(cx: &mut App, id: String, machine: Machine, fleet: String) {
     .detach();
 }
 
+/// Where a machine whose Sheprd is in no fleet stands, given what the
+/// plain host sync found of its relay agent: a plain host of this fleet,
+/// or one the fleet removed, stays one; any other is a computer to invite.
+pub(crate) fn beside_daemon(plain: Standing) -> Standing {
+    match plain {
+        Standing::Agent | Standing::Removed => plain,
+        _ => Standing::Outside,
+    }
+}
+
 /// Invites the computer `machine` to join: it signs its own bundle for the
 /// fleet, this computer's daemon admits it (a person here asked for it),
 /// and the whole log is handed over, which the machine takes only because
@@ -351,6 +383,17 @@ pub(crate) fn invite(
     machine: Machine,
     done: impl FnOnce(Option<String>, &mut App) + 'static,
 ) {
+    invite_all(cx, vec![(id, machine)], done);
+}
+
+/// Invites each of `machines` in turn, as [`invite`] does one, which a
+/// person here approved as one change. A failure does not stop the others;
+/// `done` gets the first, naming its machine when there were several.
+pub(crate) fn invite_all(
+    cx: &mut App,
+    machines: Vec<(String, Machine)>,
+    done: impl FnOnce(Option<String>, &mut App) + 'static,
+) {
     let (Some(client), Some(fleet)) = (
         Supervisor::client(cx),
         Fleet::view(cx).map(|view| view.fleet.clone()),
@@ -358,39 +401,68 @@ pub(crate) fn invite(
         done(Some(Error::NoDaemon.to_string()), cx);
         return;
     };
-    Fleet::set_acting(cx, &id, true);
+    // One fleet change at a time: a join under way would leave this
+    // computer in no fleet to invite anyone into.
+    if Fleet::busy(cx) {
+        done(Some(Error::Busy.to_string()), cx);
+        return;
+    }
+    for (id, _) in &machines {
+        Fleet::set_acting(cx, id, true);
+    }
     let executor = cx.background_executor().clone();
+    let several = machines.len() > 1;
     cx.spawn(async move |cx| {
-        let outcome = async {
-            let target = machine.target.clone();
-            let named = fleet.clone();
-            let (bundle, signature) = executor
-                .spawn(async move { remote::bundle(&target, &named, &AtomicBool::new(false)) })
-                .await?;
-            daemon(
-                &client,
-                Ask::Admit {
-                    bundle,
-                    signature,
-                    method: Method::Ssh,
-                },
-            )
-            .await?;
-            hand_over(&client, &executor, &machine.target, &fleet).await?;
-            Ok::<_, Error>(())
-        }
-        .await;
-        cx.update(|cx| {
-            Fleet::set_acting(cx, &id, false);
-            // It is in the fleet now, whatever it said before: sync it.
-            if outcome.is_ok() {
-                Fleet::set_link(cx, &id, super::Link::restart);
+        let mut failure = None;
+        for (id, machine) in machines {
+            let outcome = invite_one(&client, &executor, &machine, &fleet).await;
+            if let Err(error) = &outcome {
+                tracing::debug!(%error, "Could not invite a computer to the fleet");
+                failure.get_or_insert_with(|| {
+                    if several {
+                        format!("{}: {error}", machine.label)
+                    } else {
+                        error.to_string()
+                    }
+                });
             }
+            cx.update(|cx| {
+                Fleet::set_acting(cx, &id, false);
+                // It is in the fleet now, whatever it said before: sync it.
+                if outcome.is_ok() {
+                    Fleet::set_link(cx, &id, super::Link::restart);
+                }
+            });
+        }
+        cx.update(|cx| {
             Fleet::refresh(cx);
-            done(outcome.err().map(|error| error.to_string()), cx);
+            done(failure, cx);
         });
     })
     .detach();
+}
+
+async fn invite_one(
+    client: &crate::remote::supervisor::Client,
+    executor: &BackgroundExecutor,
+    machine: &Machine,
+    fleet: &str,
+) -> Result<(), Error> {
+    let target = machine.target.clone();
+    let named = fleet.to_owned();
+    let (bundle, signature) = executor
+        .spawn(async move { remote::bundle(&target, &named, &AtomicBool::new(false)) })
+        .await?;
+    daemon(
+        client,
+        Ask::Admit {
+            bundle,
+            signature,
+            method: Method::Ssh,
+        },
+    )
+    .await?;
+    hand_over(client, executor, &machine.target, fleet).await
 }
 
 /// Shares the Sheprd host `machine` with the fleet, leaving out the

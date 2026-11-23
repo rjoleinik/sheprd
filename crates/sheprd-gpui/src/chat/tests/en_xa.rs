@@ -3,7 +3,7 @@
 //! the agent's plan, and a shell left running, in every layout, with the
 //! running table open.
 
-use super::{
+use crate::chat::tests::{
     overlay::{attach_with, open, poll},
     *,
 };
@@ -91,6 +91,12 @@ fn a_chat_shows_only_messages_and_its_conversation_under_en_xa() {
             .into_iter()
             .chain(STEPS)
             .map(str::to_owned)
+            .chain(view.read_with(cx, |view, cx| {
+                view.chats
+                    .panes()
+                    .filter_map(|chat| view.chat_pane_name(chat, cx))
+                    .collect::<Vec<_>>()
+            }))
             .chain(view.read_with(cx, |view, _| {
                 view.keymap()
                     .shortcuts(sheprd_commands::Command::Palette)
@@ -98,9 +104,10 @@ fn a_chat_shows_only_messages_and_its_conversation_under_en_xa() {
                     .collect::<Vec<_>>()
             }))
             .collect();
-        // GPUI shapes a line once, so a layout that cuts a line an earlier
-        // one drew whole shows only the cut; it is checked against them all.
-        let mut seen = Vec::new();
+        // GPUI can cache names during the initial draw we discarded. Seed
+        // their full text so later truncations are recognized, then retain
+        // every shaped line across layouts for translated labels too.
+        let mut seen = data.clone();
         let mut shown = |lines: Vec<String>| {
             let fresh = lines.len();
             seen.extend(lines);

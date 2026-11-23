@@ -117,3 +117,29 @@ fn a_closed_workspace_id_is_not_given_again() {
     assert!(is_kept_id(&second) && is_kept_id(crate::core_terminals::WORKSPACE));
     assert!(!is_kept_id("w_1"));
 }
+
+#[test]
+fn the_last_folder_and_user_name_survive_serialization() {
+    let scope = Scope::endpoint("ssh:box");
+    let mut store = Store::default();
+    let id = store.keep_workspace(&scope, "old", "/old", false).unwrap();
+    assert!(!store.follow_kept_folder(&Scope::endpoint("other"), &id, "/wrong"));
+    assert!(!store.follow_kept_folder(&scope, &id, ""));
+    assert!(!store.follow_kept_folder(&scope, &id, &"x".repeat(5000)));
+    assert!(store.follow_kept_folder(&scope, &id, "/work/repo"));
+    assert_eq!(store.kept_workspace(&scope, &id).unwrap().label, "repo");
+    assert!(!store.follow_kept_folder(&scope, &id, "/work/repo"));
+    store.rename_kept(&scope, &id, "My project");
+    assert!(store.follow_kept_folder(&scope, &id, "/work/final"));
+    let bytes = serde_json::to_vec(&Saved {
+        tabs: Vec::new(),
+        workspaces: store.workspaces.clone(),
+        synced: Default::default(),
+    })
+    .unwrap();
+    let restored = sheprd_session::SavedTabs::parse(&bytes).unwrap();
+    let saved = restored.workspaces(scope.as_str()).next().unwrap();
+    assert_eq!(saved.cwd, "/work/final");
+    assert_eq!(saved.label, "My project");
+    assert!(saved.custom);
+}

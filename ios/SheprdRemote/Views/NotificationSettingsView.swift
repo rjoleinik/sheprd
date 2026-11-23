@@ -7,7 +7,9 @@ import UIKit
 /// Activities, and one test push from a source picked in a menu.
 struct NotificationSettingsView: View {
     @Environment(AppModel.self) private var model
-    @AppStorage(ActivityTokens.genericSetting) private var genericActivities = false
+    @AppStorage(LiveActivityStyleSetting.key, store: LiveActivityStyleSetting.store)
+    private var style = LiveActivityStyle.standardChoice.rawValue
+    @State private var showingStyle = false
 
     var body: some View {
         List {
@@ -28,10 +30,12 @@ struct NotificationSettingsView: View {
                 if !ActivityAuthorizationInfo().areActivitiesEnabled {
                     Label("Live Activities are off for Sheprd. Turn them on in Settings.", systemImage: "exclamationmark.triangle")
                 }
-                Toggle("Keep Generic", isOn: $genericActivities)
-                    .onChange(of: genericActivities) { _, generic in
-                        Task { await model.tokens.genericChanged(to: generic) }
-                    }
+                NavigationLink {
+                    LiveActivityStyleView().makesRoomForConnectionToast()
+                } label: {
+                    LabeledContent("Style", value: LiveActivityStyle.stored(style).title)
+                }
+                TestActivityRow()
                 #if DEBUG
                 Button("Start a sample activity") { model.startSample() }
                 if let status = model.sampleStatus {
@@ -41,7 +45,7 @@ struct NotificationSettingsView: View {
             } header: {
                 Text("Live Activities")
             } footer: {
-                Text("Generic shows the agent and what it is doing, without the chat's name, steps, or questions. A computer can also choose this in Sheprd's Remote control settings.")
+                Text("Style picks how much an activity shows, from Private, which keeps the chat's name and steps off this phone, to Geek. A computer can also keep its activities generic in Sheprd's Remote control settings. Start Test Activity has this phone start one on itself through the push relay, as a computer does, in the chosen style.")
             }
             Section {
                 TestPushRow()
@@ -51,6 +55,9 @@ struct NotificationSettingsView: View {
         }
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(isPresented: $showingStyle) { LiveActivityStyleView().makesRoomForConnectionToast() }
+        // The simulator loop's `-openLiveActivityStyle YES`.
+        .task { if UserDefaults.standard.bool(forKey: "openLiveActivityStyle") { showingStyle = true } }
     }
 }
 
@@ -99,6 +106,32 @@ struct DeskHoldView: View {
         }
         .navigationTitle("Hold Alerts at the Desk")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// Start Test Activity: this phone starts a Live Activity on itself through
+/// the push relay (`ActivityTest`), which needs no computer online.
+struct TestActivityRow: View {
+    @Environment(AppModel.self) private var model
+    @AppStorage(PushRelaySetting.key, store: PushRelaySetting.store) private var pushRelay = true
+
+    var body: some View {
+        let test = model.activityTest
+        VStack(alignment: .leading, spacing: 4) {
+            Button {
+                Task { await test.start() }
+            } label: {
+                Label("Start Test Activity", systemImage: "platter.filled.top.iphone")
+            }
+            .buttonStyle(.borderless)
+            .disabled(!pushRelay || test.busy)
+            if let status = test.status {
+                Text(ActivityTest.text(status)).font(.footnote).foregroundStyle(.secondary)
+            } else if !pushRelay {
+                Text("Turn on Use the Push Relay to test Live Activities.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+        }
     }
 }
 

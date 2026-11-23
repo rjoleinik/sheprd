@@ -281,6 +281,11 @@ jobs:
       - name: Test mockup feedback receiver
         if: matrix.features == 'default'
         run: python3 .claude/skills/gpui-mockup/scripts/test_wait.py
+      - name: Test terminal benchmark measurements
+        if: matrix.features == 'default'
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 scripts/test_bench_terminal.py
       - name: Lint every target and feature
         if: matrix.features == 'all' && env.SCOPE != ''
         run: read -ra scope <<< "$SCOPE" && cargo clippy --locked "${scope[@]}" --all-targets --all-features -- -D warnings

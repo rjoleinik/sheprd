@@ -496,8 +496,16 @@ impl SheprdWindow {
     /// What `group` draws. A page another window closed reads as nothing
     /// until the next tick forgets it.
     pub(crate) fn group_shown(&self, group: GroupId, cx: &App) -> Shown {
+        let fallback = self.live.missing_installation
+            && self.kept_in_front().is_none_or(|id| {
+                id == crate::core_terminals::WORKSPACE && self.core_fallback_view().is_some()
+            });
         let Some(layout) = self.layout() else {
-            return Shown::Terminal;
+            return if self.kept_in_front().is_some() && !fallback {
+                Shown::Empty
+            } else {
+                Shown::Terminal
+            };
         };
         let focused = |group| self.group_focused_tab(group);
         let shown = layout.shown(group, focused);
@@ -517,12 +525,13 @@ impl SheprdWindow {
             // group holding the window's connection shows the herdr-core
             // shell standing in for it, split or not.
             Shown::Empty
-                if self.live.missing_installation
+                if fallback
                     && Some(group) == self.primary_group()
                     && self.group_pick(group).is_none() =>
             {
                 Shown::Terminal
             }
+            Shown::Terminal if self.kept_in_front().is_some() && !fallback => Shown::Empty,
             _ => shown,
         }
     }
@@ -769,7 +778,9 @@ impl SheprdWindow {
             return;
         };
         let layout = self.layout_for((tab.scope.clone(), tab.workspace_id.clone()));
-        let group = group.unwrap_or_else(|| layout.owner(&Pick::Page(id)));
+        let group = group
+            .filter(|id| layout.slots().any(|slot| slot.id == *id))
+            .unwrap_or_else(|| layout.owner(&Pick::Page(id)));
         layout.choose(group, Pick::Page(id));
         // A page chosen in the primary group replaces its pending terminal
         // choice. Pages in other groups leave that navigation alone.
@@ -817,6 +828,7 @@ impl SheprdWindow {
         let Some(tab) = store(cx).and_then(|store| store.get(id)).cloned() else {
             return;
         };
+        self.keep_core_workspace_folders(&tab.scope, cx);
         let pick = Pick::Page(id);
         let key = (tab.scope.clone(), tab.workspace_id.clone());
         // Only the focused workspace's strips are known here; another

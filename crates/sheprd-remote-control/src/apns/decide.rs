@@ -16,13 +16,14 @@
 //! and stays on the lock screen for [`LINGER_S`].
 
 use super::{
-    Alert, Attributes, ContentState, Event, Live, Phase,
+    Alert, Attributes, ContentState, Detail, Event, Live, Phase,
+    activity::{self, Described},
     payload::{MAX_BUTTONS, MAX_PREVIOUS},
 };
 use crate::push::{Chat, excerpt};
 use sheprd_chat_protocol::{
-    Change, EntryKind, Permission, PlanEntry, PlanStatus, Status, Tool, ToolStatus, Transcript,
-    TurnEnd, TurnSummary,
+    Change, EntryKind, Permission, PlanEntry, PlanStatus, Status, Tool, ToolKind, ToolStatus,
+    Transcript, TurnEnd, TurnSummary,
 };
 
 /// How long a finished activity stays on the lock screen.
@@ -46,7 +47,7 @@ pub(crate) fn decide(
     let running = before.turn.is_some();
     match change {
         Change::Turn { turn: Some(turn) } if !running => {
-            let mut state = state(before, Phase::Working, DEFAULT_STEP.to_owned());
+            let mut state = state(before, Phase::Working, Step::idle());
             state.started_at = turn.started_ms / 1000;
             // The plan and its counts belong to the turn before.
             state.plan_done = None;
@@ -72,7 +73,7 @@ pub(crate) fn decide(
             ))
         }
         Change::Turn { turn: None } if running && !summarized(before) => {
-            let mut state = state(before, Phase::Failed, current_step(before));
+            let mut state = state(before, Phase::Failed, now(before, &before.plan));
             state.summary = Some(format!("{} stopped", chat.agent));
             Some(end(chat, state, now_s + LINGER_S))
         }
@@ -86,14 +87,14 @@ pub(crate) fn decide(
             _ => None,
         },
         Change::Plan { plan } if running => {
-            let mut state = state(before, phase(before), step(before, plan));
+            let mut state = state(before, phase(before), now(before, plan));
             (state.plan_done, state.plan_total) = plan_counts(plan);
             let unchanged = state.step == current_step(before)
                 && (state.plan_done, state.plan_total) == plan_counts(&before.plan);
             (!unchanged).then(|| update(chat, state, None))
         }
         Change::PermissionAsked { permission } if running && !before.auto_accept => {
-            let mut state = state(before, Phase::Question, current_step(before));
+            let mut state = state(before, Phase::Question, now(before, &before.plan));
             state.question = Some(excerpt(&permission.title));
             asking(&mut state, permission);
             let alert = Alert {
@@ -107,7 +108,7 @@ pub(crate) fn decide(
             last.then(|| {
                 update(
                     chat,
-                    state(before, Phase::Working, current_step(before)),
+                    state(before, Phase::Working, now(before, &before.plan)),
                     None,
                 )
             })
@@ -115,7 +116,7 @@ pub(crate) fn decide(
         Change::Status {
             status: Status::Failed { message },
         } if running => {
-            let mut state = state(before, Phase::Failed, current_step(before));
+            let mut state = state(before, Phase::Failed, now(before, &before.plan));
             state.summary = Some(excerpt(message));
             Some(end(chat, state, now_s + LINGER_S))
         }
@@ -128,7 +129,7 @@ fn turn_ended(chat: &Chat<'_>, before: &Transcript, summary: &TurnSummary, now_s
         TurnEnd::Failed | TurnEnd::Refused => Phase::Failed,
         TurnEnd::Done | TurnEnd::Cancelled | TurnEnd::Limit | TurnEnd::Other => Phase::Finished,
     };
-    let mut state = state(before, phase, current_step(before));
+    let mut state = state(before, phase, now(before, &before.plan));
     state.summary = Some(summary.describe());
     let dismissal_s = if summary.end == TurnEnd::Cancelled {
         now_s
@@ -145,11 +146,54 @@ fn tool_step(chat: &Chat<'_>, before: &Transcript, tool: &Tool) -> Option<Live> 
     if !running || tool.title.trim().is_empty() {
         return None;
     }
-    let step = excerpt(&tool.title);
-    if step == current_step(before) {
+    let step = Step::of(tool);
+    let new = !turn_tools(before).any(|known| known.call_id == tool.call_id);
+    // A new call counts even when its step reads like the one shown, as a
+    // command run again does: its counts changed.
+    if step.step == current_step(before) && !new {
         return None;
     }
-    Some(update(chat, state(before, phase(before), step), None))
+    let mut state = state(before, phase(before), step);
+    if new {
+        state.detail.steps = Some(state.detail.steps.unwrap_or(0).saturating_add(1));
+    }
+    Some(update(chat, state, None))
+}
+
+/// The step an activity shows: the tool call's title with a shell wrapper
+/// taken off, or a plan step, and, for the phone's styles, it in words.
+struct Step {
+    step: String,
+    described: Option<Described>,
+}
+
+impl Step {
+    fn idle() -> Self {
+        Self {
+            step: DEFAULT_STEP.to_owned(),
+            described: None,
+        }
+    }
+
+    fn of(tool: &Tool) -> Self {
+        Self {
+            step: excerpt(&activity::clean(&tool.title)),
+            described: Some(activity::describe(tool)),
+        }
+    }
+}
+
+/// The current turn's tool calls with a title, newest first.
+fn turn_tools(transcript: &Transcript) -> impl Iterator<Item = &Tool> {
+    transcript
+        .entries
+        .iter()
+        .rev()
+        .take_while(|entry| !matches!(entry.kind, EntryKind::User { .. }))
+        .filter_map(|entry| match &entry.kind {
+            EntryKind::Tool(tool) if !tool.title.trim().is_empty() => Some(tool),
+            _ => None,
+        })
 }
 
 /// The phase a turn is in apart from the change at hand.
@@ -162,18 +206,48 @@ fn phase(before: &Transcript) -> Phase {
 }
 
 /// The content shared by every push for a running turn.
-fn state(before: &Transcript, phase: Phase, step: String) -> ContentState {
+fn state(before: &Transcript, phase: Phase, step: Step) -> ContentState {
     let (plan_done, plan_total) = plan_counts(&before.plan);
+    let earlier = previous(before, &step.step);
+    let count = |n: usize| (n > 0).then(|| u32::try_from(n).unwrap_or(u32::MAX));
+    let mut edited: Vec<&str> = turn_tools(before)
+        .filter(|tool| {
+            matches!(
+                tool.kind,
+                ToolKind::Edit | ToolKind::Delete | ToolKind::Move
+            )
+        })
+        .flat_map(|tool| tool.locations.iter().map(String::as_str))
+        .collect();
+    edited.sort_unstable();
+    edited.dedup();
+    let detail = Detail {
+        activity: step
+            .described
+            .as_ref()
+            .map(|described| described.activity.clone()),
+        files: count(edited.len()),
+        icon: step.described.as_ref().map(|described| described.icon),
+        previous_activities: earlier
+            .iter()
+            .map(|tool| activity::describe(tool).activity)
+            .collect(),
+        steps: count(turn_tools(before).count()),
+    };
     let mut state = ContentState {
+        detail,
         phase,
         plan_done,
         plan_total,
         options: Vec::new(),
         permission: None,
-        previous: previous(before, &step),
+        previous: earlier
+            .iter()
+            .map(|tool| excerpt(&activity::clean(&tool.title)))
+            .collect(),
         question: None,
         started_at: before.turn.map_or(0, |turn| turn.started_ms / 1000),
-        step,
+        step: step.step,
         summary: None,
         waiting: 0,
         working: 0,
@@ -198,32 +272,24 @@ fn asking(state: &mut ContentState, permission: &Permission) {
         .collect();
 }
 
-/// The current turn's last [`MAX_PREVIOUS`] tool steps other than `step`,
-/// oldest first: the stack the lock screen shows above it.
-fn previous(transcript: &Transcript, step: &str) -> Vec<String> {
-    let turn = transcript
-        .entries
-        .iter()
-        .rev()
-        .take_while(|entry| !matches!(entry.kind, EntryKind::User { .. }));
-    let mut steps: Vec<String> = Vec::new();
-    for entry in turn {
-        let EntryKind::Tool(tool) = &entry.kind else {
-            continue;
-        };
-        if tool.title.trim().is_empty() {
-            continue;
+/// The current turn's last [`MAX_PREVIOUS`] tool calls whose step is not
+/// `step`, each step once, oldest first: the stack the lock screen shows
+/// above it.
+fn previous<'a>(transcript: &'a Transcript, step: &str) -> Vec<&'a Tool> {
+    let mut seen: Vec<String> = Vec::new();
+    let mut tools: Vec<&Tool> = Vec::new();
+    for tool in turn_tools(transcript) {
+        let title = excerpt(&activity::clean(&tool.title));
+        if title != step && !seen.contains(&title) {
+            seen.push(title);
+            tools.push(tool);
         }
-        let title = excerpt(&tool.title);
-        if title != step && !steps.contains(&title) {
-            steps.push(title);
-        }
-        if steps.len() == MAX_PREVIOUS {
+        if tools.len() == MAX_PREVIOUS {
             break;
         }
     }
-    steps.reverse();
-    steps
+    tools.reverse();
+    tools
 }
 
 fn plan_counts(plan: &[PlanEntry]) -> (Option<u32>, Option<u32>) {
@@ -241,36 +307,30 @@ fn plan_counts(plan: &[PlanEntry]) -> (Option<u32>, Option<u32>) {
 /// What the turn is doing now: the running tool call of the current turn,
 /// else the plan's step in progress, else the turn's last tool call.
 pub(crate) fn current_step(transcript: &Transcript) -> String {
-    step(transcript, &transcript.plan)
+    now(transcript, &transcript.plan).step
 }
 
-/// [`current_step`] of `transcript`'s entries with `plan` as its plan.
-fn step(transcript: &Transcript, plan: &[PlanEntry]) -> String {
-    let turn = transcript
-        .entries
-        .iter()
-        .rev()
-        .take_while(|entry| !matches!(entry.kind, EntryKind::User { .. }));
+/// [`current_step`] of `transcript`'s entries with `plan` as its plan, and
+/// it in words.
+fn now(transcript: &Transcript, plan: &[PlanEntry]) -> Step {
     let mut last_tool = None;
-    for entry in turn {
-        let EntryKind::Tool(tool) = &entry.kind else {
-            continue;
-        };
-        if tool.title.trim().is_empty() {
-            continue;
-        }
+    for tool in turn_tools(transcript) {
         if matches!(tool.status, ToolStatus::Pending | ToolStatus::InProgress) {
-            return excerpt(&tool.title);
+            return Step::of(tool);
         }
-        last_tool.get_or_insert(&tool.title);
+        last_tool.get_or_insert(tool);
     }
     let planned = plan
         .iter()
-        .find(|entry| entry.status == PlanStatus::InProgress)
-        .map(|entry| entry.content.as_str());
-    planned
-        .or(last_tool.map(String::as_str))
-        .map_or_else(|| DEFAULT_STEP.to_owned(), excerpt)
+        .find(|entry| entry.status == PlanStatus::InProgress);
+    match (planned, last_tool) {
+        (Some(entry), _) => Step {
+            step: excerpt(&entry.content),
+            described: Some(activity::planned(&entry.content)),
+        },
+        (None, Some(tool)) => Step::of(tool),
+        (None, None) => Step::idle(),
+    }
 }
 
 /// Whether the transcript's last entry is a turn summary, so a following

@@ -4,6 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod join;
 mod pairing_error;
 mod scrub;
 mod settle;
@@ -19,6 +20,7 @@ fn link(standing: Standing, ago: Duration, synced: &[&str]) -> (Link, Instant) {
         running: false,
         host: None,
         standing,
+        offer: None,
     };
     (link, now)
 }

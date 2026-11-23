@@ -269,10 +269,17 @@ impl RowLayout for Superset {
             (None, RowIcon::None) => {
                 parts::icon("icons/git-branch.svg", size, icon_color).into_any_element()
             }
-            (None, icon) => div()
-                .size(px(size))
-                .child(icon.element(icon_color))
-                .into_any_element(),
+            (None, icon) => {
+                let size = if matches!(icon, RowIcon::Repository { .. }) {
+                    scaled(cx.font, 16.).min(m.icon)
+                } else {
+                    size
+                };
+                div()
+                    .size(px(size))
+                    .child(icon.element(size))
+                    .into_any_element()
+            }
         };
         let slot = if removing {
             slot(

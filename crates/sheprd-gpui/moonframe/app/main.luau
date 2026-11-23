@@ -119,7 +119,9 @@ return mod {
 		return ui.column {
 			grow = true,
 			gap = "none",
-			style = { background = theme.background },
+			-- Native pages sit below GPUI on macOS. Keep the shell clear;
+			-- the native window and the main region supply the ground, and
+			-- each chrome region paints its own background.
 			ui.row {
 				grow = true,
 				gap = "none",

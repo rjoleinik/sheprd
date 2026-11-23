@@ -53,6 +53,8 @@ mod observer_program;
 mod opencode;
 mod origin;
 mod overlay;
+mod pane_menu;
+mod pane_name;
 mod pasted;
 mod phases;
 mod pinned;

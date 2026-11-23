@@ -22,13 +22,13 @@ const IDLE: Duration = Duration::from_secs(20);
 /// Finds the program as `device_tags::sync` does, without installing it.
 /// An older build refuses `relay-enroll` and prints nothing. Standard input
 /// is drained when no program reads it.
-pub(crate) const SCRIPT: &str = "\
-program=$(command -v sheprd-remote-control || command -v herdr-remote-control || true)
-[ -n \"$program\" ] || program=\"$HOME/.local/bin/sheprd-remote-control\"
-[ -x \"$program\" ] || program=\"$HOME/.local/bin/herdr-remote-control\"
+pub(crate) const SCRIPT: &str = concat!(
+    crate::remote::program::find_program!(),
+    "\
 if [ -x \"$program\" ]; then \"$program\" relay-enroll 2>/dev/null || true; fi
 cat >/dev/null
-";
+"
+);
 
 /// How long one request's search may run, so its answer reaches the near
 /// daemon while it still waits for it.

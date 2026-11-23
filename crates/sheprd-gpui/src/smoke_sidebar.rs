@@ -1,8 +1,43 @@
 //! Daemon-free sidebar fixture driver.
-use super::*;
+use crate::smoke::*;
 
 #[path = "smoke_sidebar/quota.rs"]
 mod quota;
+
+#[cfg(test)]
+#[path = "smoke_sidebar/tests.rs"]
+mod tests;
+
+fn sidebar_fixture_size(
+    view: &SheprdWindow,
+    window: &Window,
+    width: f32,
+    height: f32,
+    style: crate::config::Style,
+) -> Size<Pixels> {
+    // Keep the same list viewport on platforms whose menu bar lives inside
+    // the window. Rounded rows need more room in both scrollable sections.
+    let menus = if view.menu_bar_shown() {
+        view.application_bar_height(window)
+    } else {
+        0.
+    };
+    // The first three repository roots have two 7px gaps. Their list gets
+    // half the body, so reserve twice those gaps in the window's height.
+    let repository_gaps = 2. * 7.;
+    let height = height
+        + 2. * repository_gaps
+        + sidebar::DEVICE_FOOTER_HEIGHT
+        + view.activity_title_height()
+        + menus
+        + if style == crate::config::Style::Rounded {
+            160.
+        } else {
+            0.
+        };
+    // Native window sizes are integral pixels; font-derived menu heights are not.
+    fixture_size(width, height.ceil())
+}
 
 /// Native check that the icon cascade reaches an installed Nerd Font. Prompts
 /// draw powerline separators and icons from the Private Use Area, which no text
@@ -194,34 +229,20 @@ pub fn start_sidebar(handle: WindowHandle<SheprdWindow>, cx: &mut App) {
                     use crate::sidebar::layout_tests::PaintedProbes;
                     let (w, h) =
                         [(1200., 780.), (640., 400.), (1000., 650.), (800., 600.)][(frame % 12) / 3];
-                    // Retain the glyph fixture's list viewport while reserving
-                    // the fixed device footer below both scrollable sections.
                     use crate::config::{Density, LayoutMode, Style};
                     let density = [Density::Comfortable, Density::Normal, Density::Compact][frame / 12 % 3];
                     let style = [Style::Flat, Style::Rounded][frame / 36];
-                    // Rounded rows are taller; grow both sections so the probed
-                    // rows stay inside their lists at the smallest size too.
-                    // The activity bar's Workspaces title sits over the
-                    // sidebar, so its height is added back too.
-                    let title = root
-                        .clone()
-                        .downcast::<SheprdWindow>()
-                        .map_err(|_| anyhow!("unexpected root"))?
-                        .read(cx)
-                        .activity_title_height();
-                    let h = h
-                        + sidebar::DEVICE_FOOTER_HEIGHT
-                        + title
-                        + if style == Style::Rounded { 160. } else { 0. };
+                    let view = root.clone().downcast::<SheprdWindow>()
+                        .map_err(|_| anyhow!("unexpected root"))?;
+                    let size = sidebar_fixture_size(view.read(cx), window, w, h, style);
                     let mode = LayoutMode::new(density, style);
                     let compact = density == Density::Compact;
                     if frame % 3 == 0 {
-                        window.resize(fixture_size(w, h));
-                    } else if window.viewport_size() != fixture_size(w, h) {
+                        window.resize(size);
+                    } else if window.viewport_size() != size {
                         // The platform keeps a window within its screen, so a
                         // size larger than the display (a 1024x768 CI runner)
                         // is skipped and counted, never passed as drawn.
-                        let size = fixture_size(w, h);
                         let fits = window.display(cx).is_none_or(|display| {
                             let screen = display.visible_bounds().size;
                             size.width <= screen.width && size.height <= screen.height
@@ -294,8 +315,7 @@ pub fn start_sidebar(handle: WindowHandle<SheprdWindow>, cx: &mut App) {
                         let expected_width = px(sidebar::LABEL_WIDTH + extra_width - icon_reserve);
                         if p.glyph_text != p.cached
                             || (expected_short && p.glyph_text != input)
-                            || (!expected_short
-                                && (p.width < px(150.) || !p.glyph_text.ends_with('\u{2026}')))
+                            || (!expected_short && !p.fills_truncated_column())
                             || p.clipped
                             || !sidebar::layout_tests::within_device_pixel(p.bounds.size.width, expected_width, window.scale_factor())
                             || p.mask.size.width != p.bounds.size.width

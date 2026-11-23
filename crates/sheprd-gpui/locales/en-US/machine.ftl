@@ -8,3 +8,7 @@ machine-starting = Starting { $name }…
 machine-status-many = { $count } virtual Macs running
 machine-status-one = { $name } running
 machine-stopped = { $name } is not running.
+
+machine-status-capacity = { $label } · { $in_use } of { $limit } slots used
+
+machine-status-installing = Installing macOS

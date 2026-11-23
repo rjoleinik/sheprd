@@ -171,7 +171,7 @@ struct RootView: View {
                     .slidesTabBar(hidden: !workspacesPath.isEmpty)
                     .connectionToast(pairing: $window.pairing)
             }
-            Tab("Pull Requests", systemImage: "arrow.triangle.pull", value: RootTab.pullRequests) {
+            Tab("PRs", systemImage: "arrow.triangle.pull", value: RootTab.pullRequests) {
                 NavigationStack { PullRequestsList().makesRoomForConnectionToast() }
                     .connectionToast(pairing: $window.pairing)
             }

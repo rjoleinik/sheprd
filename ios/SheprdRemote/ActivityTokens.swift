@@ -38,10 +38,6 @@ final class ActivityTokens {
         case unknown
     }
 
-    /// The setting that keeps this phone's activities generic: every
-    /// computer leaves the chat's name and steps out of them.
-    static let genericSetting = "liveActivitiesGeneric"
-
     private(set) var pushToStart: String?
     /// The app's own APNs token, for sealed alerts.
     private(set) var alert: String?
@@ -143,7 +139,7 @@ final class ActivityTokens {
         // Sealed attributes open only with the key of the computer they
         // name; one no key opens shows the cover, and its token goes nowhere.
         guard let facts = activity.attributes.facts(keys: NotifyKey.activityKeys()) else { return }
-        if facts.namesChat, UserDefaults.standard.bool(forKey: Self.genericSetting) {
+        if facts.namesChat, LiveActivityStyleSetting.current.asksGeneric {
             let id = activity.id
             Task { await Self.end(id) }
             return
@@ -168,13 +164,30 @@ final class ActivityTokens {
         }
     }
 
-    /// Tells the computers about Keep Generic. Turned on, it first ends
+    /// The Live Activity style changed from `old`: running activities are
+    /// drawn again in the new one, and the computers hear when Private, the
+    /// generic style, was turned on or off.
+    func styleChanged(from old: LiveActivityStyle, to new: LiveActivityStyle) async {
+        await Self.redraw()
+        guard old.asksGeneric != new.asksGeneric else { return }
+        await genericChanged(to: new.asksGeneric)
+    }
+
+    /// Draws every running activity again: ActivityKit redraws one only
+    /// when it is updated, so each is updated with what it already shows.
+    private nonisolated static func redraw() async {
+        for activity in Activity<ChatActivityAttributes>.activities {
+            await activity.update(activity.content)
+        }
+    }
+
+    /// Tells the computers about the Private style. Turned on, it first ends
     /// every activity: a title and workspace are fixed when one starts, so
     /// no later push could take them off the lock screen, and what one last
     /// said may name the chat too. That needs no network, so it does not
     /// wait on a computer that is away; `watch` ends what such a computer
     /// starts before it hears.
-    func genericChanged(to generic: Bool) async {
+    private func genericChanged(to generic: Bool) async {
         if generic {
             for id in Activity<ChatActivityAttributes>.activities.map(\.id) {
                 await Self.end(id)
@@ -253,7 +266,7 @@ final class ActivityTokens {
         // Live Activity content is sealed to it too.
         let needsKey = alert != nil || viaPushRelay
         let notifyKey = needsKey ? try? NotifyKey.loadOrCreate(for: computer.fingerprint).registered : nil
-        let generic = UserDefaults.standard.bool(forKey: Self.genericSetting)
+        let generic = LiveActivityStyleSetting.current.asksGeneric
         // With the push relay off, the computer drops every handle it holds,
         // so it stops pushing even if revoking them at the push relay failed.
         let registration = viaPushRelay

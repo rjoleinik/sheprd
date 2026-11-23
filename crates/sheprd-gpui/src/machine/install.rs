@@ -77,6 +77,15 @@ thread_local! {
     static CURRENT: RefCell<Option<Current>> = const { RefCell::new(None) };
 }
 
+/// The installer owns a live virtual machine until it completes or cancels.
+pub(super) fn occupies_slot() -> bool {
+    CURRENT.with_borrow(|current| {
+        current
+            .as_ref()
+            .is_some_and(|current| current.installing.is_some())
+    })
+}
+
 /// The install under way or the last one that failed: which machine, and
 /// where it is.
 pub(crate) fn progress() -> Option<(Name, Progress)> {
@@ -277,6 +286,7 @@ async fn run(name: &Name, counter: &Arc<Counter>, cx: &mut AsyncApp) -> Result<(
     };
     let done = cx.update(|cx| -> Result<_> {
         cancelled(counter)?;
+        crate::machine::check_capacity(name)?;
         let installing = Installing::start(&*bundle.configuration()?, &image)?;
         let done = installing.done.clone();
         set(|current| current.installing = Some(installing));

@@ -15,7 +15,7 @@
 //! | to idle, or gone, while running | end, finished, dismissed at once |
 
 use super::{
-    Alert, Attributes, ContentState, Event, Live, Phase,
+    Alert, Attributes, ContentState, Detail, Event, Live, Phase,
     decide::{DEFAULT_STEP, LINGER_S, computer_id},
 };
 use crate::push::{Moved, SeenAgent, excerpt, is_running};
@@ -110,6 +110,7 @@ fn start(agent: &SeenAgent<'_>, alert: Alert, computer: &str, fingerprint: &str)
 
 fn state(phase: Phase, step: String, started_at: u64) -> ContentState {
     ContentState {
+        detail: Detail::default(),
         options: Vec::new(),
         permission: None,
         phase,

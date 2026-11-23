@@ -16,12 +16,19 @@ const REFRESH: Duration = Duration::from_secs(10);
 /// How long one folder's answer may take.
 const DEADLINE: Duration = Duration::from_secs(5);
 
-type Answers = Vec<(String, Option<Identity>)>;
+struct Answer {
+    cwd: String,
+    identity: Option<Identity>,
+    upstream: Option<(usize, usize)>,
+}
+
+type Answers = Vec<Answer>;
 
 /// What the folders last answered, and the batch being asked.
 #[derive(Default)]
 pub(super) struct Checkouts {
     known: HashMap<String, Option<Identity>>,
+    upstream: HashMap<String, (usize, usize)>,
     asking: Option<mpsc::Receiver<Answers>>,
     asked: Option<Instant>,
 }
@@ -31,6 +38,10 @@ impl Checkouts {
     /// Git checkout.
     pub(super) fn get(&self, cwd: &str) -> Option<&Identity> {
         self.known.get(cwd)?.as_ref()
+    }
+
+    pub(super) fn upstream(&self, cwd: &str) -> Option<(usize, usize)> {
+        self.upstream.get(cwd).copied()
     }
 
     /// Takes a finished batch and starts the next one when `folders` holds
@@ -49,7 +60,18 @@ impl Checkouts {
         if let Some(asking) = &self.asking {
             match asking.try_recv() {
                 Ok(answers) => {
-                    for (cwd, identity) in answers {
+                    for Answer {
+                        cwd,
+                        identity,
+                        upstream,
+                    } in answers
+                    {
+                        changed |= self.upstream.get(&cwd).copied() != upstream;
+                        if let Some(counts) = upstream {
+                            self.upstream.insert(cwd.clone(), counts);
+                        } else {
+                            self.upstream.remove(&cwd);
+                        }
                         changed |= self.known.get(&cwd) != Some(&identity);
                         self.known.insert(cwd, identity);
                     }
@@ -61,6 +83,7 @@ impl Checkouts {
         }
         let before = self.known.len();
         self.known.retain(|cwd, _| folders.contains(cwd));
+        self.upstream.retain(|cwd, _| folders.contains(cwd));
         changed |= self.known.len() != before;
         let unasked = folders.iter().any(|cwd| !self.known.contains_key(cwd));
         let stale = self.asked.is_none_or(|asked| now >= asked + REFRESH);
@@ -92,7 +115,18 @@ impl Checkouts {
                                 .ok()
                                 .flatten()
                         };
-                        (cwd, identity)
+                        let upstream = if identity.is_some() && !target.is_remote() {
+                            sheprd_vcs::git::upstream::read(&cwd, deadline, &|| false)
+                                .ok()
+                                .flatten()
+                        } else {
+                            None
+                        };
+                        Answer {
+                            cwd,
+                            identity,
+                            upstream,
+                        }
                     })
                     .collect();
                 let _ = send.send(answers);

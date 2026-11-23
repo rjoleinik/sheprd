@@ -1241,10 +1241,22 @@ clears the search. Set top-level `show_sidebar_search = false`, or turn off
 **Show search** in **Settings > Sidebar**, to hide it.
 
 In the Normal, Compact, and Comfortable layouts and in Superset, each space's
-sidebar row starts with its repository owner's avatar, or the GitHub mark;
-Orca and Minimal draw neither. Set top-level `show_repository_icons = false`,
-or turn off **Show repository icons** in **Settings > Sidebar**, to leave
-both out and give the name their room. The Superset layout
+sidebar row starts with its repository owner's avatar, or a colored letter tile
+derived from the repository name while the avatar is unavailable or loading.
+Tiles keep a stable blue or purple hue and readable initials in light and dark
+themes; bold remains reserved for the selected workspace. Classic layouts add
+a small gap between repository groups, never between a parent and its worktrees.
+Minimal keeps its rows icon-free and separates repository groups with a thin
+rule and a little space. Explicit custom space-row spacing takes precedence;
+a zero gap also removes Minimal's rule.
+Orca puts a small repo chip on each card's existing metadata line, or beside
+the title when the card has no metadata. Custom token rows stay unchanged.
+The collapsed rail shows letter tiles on main checkouts, keeps a smaller
+workspace index beside each tile, and leaves child worktrees numbered. Status
+dots keep their own column, and worktree tooltips include the repository name.
+Set top-level `show_repository_icons = false`, or turn off **Show repository
+icons** in **Settings > Sidebar**, to hide avatars, tiles, and Orca chips;
+the rail returns to full-size numbers. The Superset layout
 keeps its icon slot and draws its branch glyph there instead.
 
 `[usage]` provides independent switches in `config-gpui.local.toml`:
@@ -1906,6 +1918,14 @@ on GNOME Wayland remains required for dragging, resizing, the window menu,
 maximize/restore, and the shadow.
 
 ## Herdr 2 Terminals
+
+App-kept spaces follow the current directory of their oldest driving tab's
+first pane. Changing directory refreshes the automatic name, repository,
+branch, and Git/PR lookup; a name you chose stays unchanged. A new tab in an
+empty split group uses that space's current folder. Local checkout rows also
+show ahead/behind counts against the configured upstream, without fetching.
+The last known folder is saved, so closing the last terminal or restarting
+the app preserves it and the automatic name.
 
 Herdr 2 (herdr-core) runs terminals that stay alive like Herdr's, but streams
 their raw output, so Sheprd emulates each one itself and draws it with the
@@ -3877,9 +3897,11 @@ code-tunnel serve-web --host 127.0.0.1 --port <port> \
   or remove `port` to have a new one picked (VS Code then starts without the
   settings it kept). The app sends nothing to a port it does not hold, since
   the token must reach only its own server. It asks that server for its
-  version alone, never with the token, once its own `serve-web` says it
-  listens there, and counts the answer only if `serve-web` still runs after
-  it; a page, which must carry the token, is made only while it runs.
+  version with the token, since current VS Code releases authenticate every
+  route. This happens only once its own `serve-web` says it listens there,
+  and the answer counts only if that process still runs afterward. Windows
+  use the worker's answer without another probe; a page is made only while
+  the process still runs.
 - The connection token is made once and kept in `vscode-token` in the app's
   state folder (`~/.local/state/herdr/gpui` unless `XDG_STATE_HOME` is set),
   readable only by you on macOS; on Windows it has your profile folder's
@@ -4263,7 +4285,8 @@ Ctrl+Shift+U is left unbound for
   their sections; double-click it to restore an even split. The split is saved
   across launches and retained while Agents is hidden.
   Local workspace titles show repository owner avatars; remote
-  workspaces use the GitHub fallback mark without resolving remote paths locally.
+  workspaces without an available avatar use the repository's letter tile without
+  resolving remote paths locally.
   `show_repository_icons = false` leaves both out. An owner's avatar is read
   from `github.com/OWNER.png`, following its one redirect only to an account's
   picture by ID on `avatars.githubusercontent.com`, so an organization whose

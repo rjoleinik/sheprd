@@ -28,6 +28,7 @@ mod kept_workspaces;
 mod keys;
 mod link_handlers;
 mod links;
+mod live_workspace_folder;
 mod menus;
 mod moves;
 mod mutes;

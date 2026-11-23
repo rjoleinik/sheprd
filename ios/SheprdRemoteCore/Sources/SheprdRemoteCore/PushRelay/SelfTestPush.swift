@@ -26,7 +26,8 @@ public enum SelfTestPush {
 
     /// `POST /v1/push` on the push relay (`crates/sheprd-push-relay/src/relay.rs`).
     public struct Request: Encodable, Equatable, Sendable {
-        public let collapseId: String
+        /// Absent for a Live Activity, as a computer sends none.
+        public let collapseId: String?
         public let handle: String
         /// The APNs payload as JSON text.
         public let payload: String

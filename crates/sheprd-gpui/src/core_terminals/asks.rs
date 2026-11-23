@@ -79,7 +79,11 @@ impl SheprdWindow {
                 || self.core_terminals.mirrors(&at) =>
             {
                 match self.browser_key() {
-                    Some((scope, workspace)) => Purpose::Tab { scope, workspace },
+                    Some((scope, workspace)) => Purpose::Tab {
+                        group: None,
+                        scope,
+                        workspace,
+                    },
                     // No workspace to hold a tab: the system opens it.
                     None => {
                         self.open_in_system_app(target.path.clone(), cx);

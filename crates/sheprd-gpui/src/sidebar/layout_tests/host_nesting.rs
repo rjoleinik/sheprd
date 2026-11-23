@@ -111,7 +111,11 @@ fn nested_worktree_rows_fit_a_narrow_sidebar(cx: &mut gpui::TestAppContext) {
         };
         // Roots of both repositories share a column, so the remote host's
         // first workspace stands in for the child's own repository row.
-        let parent = bounds("name-remote workspace");
+        let parent = if matches!(mode, crate::config::LayoutMode::Classic { .. }) {
+            bounds("github-remote workspace")
+        } else {
+            bounds("name-remote workspace")
+        };
         // With several hosts a row is selected by its host and id.
         let row = bounds("workspace-ssh:test-w4");
         let name = bounds("name-remote-child-with-a-long-readable-branch-name");

@@ -1681,6 +1681,7 @@ that member.
 | --- | --- | --- |
 | A computer, over Bluetooth (#1389, both directions) | On the member, and on the joining computer, because joining makes it a host for everyone | The 6-digit code both screens show |
 | A computer, over SSH, when the member already reaches it | On the member. The SSH session already proves the person controls that account. The joining computer's app then shows "Joined studio's fleet" with Leave. | The strictly checked SSH host key |
+| A computer in no fleet, over SSH, when it reaches a member | On the joining computer: Settings > Fleet shows "studio already has a fleet" with Join. Reaching the member's account over SSH proves the person controls it, as above. The joiner signs its bundle, the member's `fleet admit` admits it (computers only; a phone joins by pairing), and the joiner carries the member's log back with `fleet apply` | The strictly checked SSH host key |
 | A computer, from a phone | On the phone, after Nearby pairing between the phone and the computer: "Add studio to your fleet?", with Face ID | The Bluetooth code |
 | A phone, by QR or Nearby pairing | The pairing dialog's Allow on the computer gains a line, ticked by default: "Also add to your fleet (3 computers, 9 hosts)". The phone shows the same line before it claims. | The QR, or the Bluetooth code |
 
@@ -1696,6 +1697,12 @@ What happens:
 4. Sync spreads `Admit`. Hosts add the joiner's grants, every member
    lists the joiner as a host, and the joiner lists every host. Both
    directions work after one round.
+
+**Many computers at once.** A member's Settings > Fleet counts the
+computers it reaches over SSH that are in no fleet, and Invite all
+invites each in turn, as Invite does one. A computer in no fleet answers
+`fleet apply` with an empty fleet rather than failing, so it is told from
+a machine without Sheprd, and one in another fleet is left out.
 
 **A device in another fleet.** A device belongs to one fleet. When the
 joiner already has one, the dialog names both. Joining means leaving the

@@ -90,6 +90,7 @@ fn a_tab_in_a_herdr_workspace_starts_where_the_workspace_did(cx: &mut TestAppCon
         &view,
         cx,
         Purpose::Tab {
+            group: None,
             scope,
             workspace: "w0".into(),
         },
@@ -156,12 +157,13 @@ fn without_herdr_a_tab_starts_where_the_shown_core_pane_is(cx: &mut TestAppConte
         scope
     });
     let purpose = || Purpose::Tab {
+        group: None,
         scope: scope.clone(),
         workspace: WORKSPACE.into(),
     };
-    // Nothing shown yet: the home folder.
+    // The driving terminal supplies the folder even before its tab is shown.
     let spawn = spawn_for(&view, cx, purpose());
-    assert_eq!(spawn.cwd, sheprd_client::local_path::home_dir());
+    assert_eq!(spawn.cwd.as_deref(), Some(Path::new("/work/repo")));
     assert_eq!(env(&spawn, "HERDR_WORKSPACE_ID"), Some(""));
     assert_eq!(env(&spawn, "HERDR_SOCKET_PATH"), None);
     cx.update(|window, cx| {
@@ -179,6 +181,7 @@ fn a_tab_on_a_saved_host_takes_nothing_from_this_computer(cx: &mut TestAppContex
     let mut spawn = Spawn::default();
     view.update(cx, |view, cx| {
         let purpose = Purpose::Tab {
+            group: None,
             scope: crate::browser::Scope::endpoint("box"),
             workspace: "w0".into(),
         };

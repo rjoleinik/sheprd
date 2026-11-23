@@ -4,6 +4,8 @@ use super::*;
 fn machine_agent_operations_round_trip() {
     for op in [
         TabOp::MachineAgent { name: "a".into() },
+        TabOp::MachineClaim { name: "a".into() },
+        TabOp::MachineRelease { name: "a".into() },
         TabOp::MachineClick {
             name: "a".into(),
             x: 10,
@@ -123,4 +125,13 @@ fn machine_setup_round_trips_and_waits_to_arrive() {
     let op = TabOp::MachineSetup { name: "a".into() };
     assert_eq!(op.wait_seconds(), ARRIVE_WAIT_SECONDS);
     round_trip(op);
+}
+
+#[test]
+fn machine_reservation_listing_accepts_older_replies() {
+    let mut info: MachineInfo = serde_json::from_str(r#"{"name":"one","state":"running","cpus":4,"memory_gib":8,"display":"fit","disk_bytes":0}"#).unwrap();
+    assert_eq!(info.reservation, None);
+    info.reservation = Some("busy: terminal t7".into());
+    let wire = serde_json::to_string(&info).unwrap();
+    assert_eq!(serde_json::from_str::<MachineInfo>(&wire).unwrap(), info);
 }

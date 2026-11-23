@@ -5,7 +5,7 @@
 //! where the VS Code tabs' server is or why it is not there yet.
 //!
 //! Builds that cannot show pages (Linux) find and start nothing.
-use super::{
+use crate::code_server::{
     cli,
     supervisor::{Plan, Report, Status, Supervisor},
     token,
@@ -63,11 +63,10 @@ pub(crate) enum Startup {
     /// Ready to start once a page needs VS Code.
     Idle,
     /// VS Code is starting; `url` is its address once made.
-    Starting {
-        url: Option<WebUrl>,
-    },
+    Starting { url: Option<WebUrl> },
     Ready {
         url: WebUrl,
+        server: crate::code_server::Server,
     },
     /// It failed or stopped, and starts again shortly.
     Failed {
@@ -82,7 +81,7 @@ impl Startup {
     pub(crate) fn url<'a>(&'a self, code: &'a CodeConfig) -> Option<&'a WebUrl> {
         match self {
             Self::Address => code.url.as_ref(),
-            Self::Ready { url } => Some(url),
+            Self::Ready { url, .. } => Some(url),
             Self::Starting { url } | Self::Failed { url, .. } => url.as_ref(),
             Self::Finding | Self::Missing | Self::Consent | Self::Idle => None,
         }
@@ -153,8 +152,11 @@ pub(super) fn reported(running: bool, report: Option<&Report>) -> Startup {
     };
     let url = report.address.as_ref().map(|address| address.url.clone());
     match (&report.status, url) {
-        (Status::Ready, Some(url)) => Startup::Ready { url },
-        (Status::Starting | Status::Ready, url) => Startup::Starting { url },
+        (Status::Ready(server), Some(url)) => Startup::Ready {
+            url,
+            server: server.clone(),
+        },
+        (Status::Starting | Status::Ready(_), url) => Startup::Starting { url },
         (Status::Failed { error, .. }, url) => Startup::Failed {
             error: error.clone(),
             url,
@@ -185,7 +187,7 @@ pub(crate) struct Launcher {
     /// Starts the worker; tests start nothing.
     start: fn(Plan) -> crate::Result<Supervisor>,
     /// Where the token is kept; tests never touch the user's state folder.
-    token_file: fn() -> super::error::Result<PathBuf>,
+    token_file: fn() -> crate::code_server::error::Result<PathBuf>,
 }
 
 impl Default for Launcher {

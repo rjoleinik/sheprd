@@ -6,6 +6,8 @@
 //!
 //! - [`remote`]: the halves run on another machine over SSH.
 //! - [`flows`]: syncing a machine, inviting a computer, sharing a host.
+//! - [`join`]: while this computer is in no fleet, the fleets of the
+//!   computers it reaches, and joining one of them.
 //! - [`saved`]: each fleet host this computer may reach, kept as a saved
 //!   device, `USER@r-ID.sheprd.invalid`.
 //! - [`plain`] and [`agent`]: plain hosts, which run no Sheprd daemon:
@@ -21,6 +23,7 @@ pub(crate) mod agent;
 pub(crate) mod bluetooth;
 mod error;
 pub(crate) mod flows;
+pub(crate) mod join;
 pub(crate) mod joins;
 pub(crate) mod plain;
 mod remote;
@@ -75,6 +78,8 @@ pub(crate) struct Link {
     /// The host it last proved to be.
     host: Option<String>,
     pub(crate) standing: Standing,
+    /// The fleet it is a member of, while this computer is in none.
+    pub(crate) offer: Option<join::Offer>,
 }
 
 /// What a machine said about the fleet.
@@ -84,8 +89,10 @@ pub(crate) enum Standing {
     Unknown,
     /// In this fleet.
     Member,
-    /// In no fleet or in another.
+    /// In no fleet, or not proven to be in this one.
     Outside,
+    /// In another fleet: neither invited nor shared.
+    Elsewhere,
     /// Runs no Sheprd daemon, nor a relay agent of this fleet: it may be
     /// shared as a plain host.
     NoDaemon,
@@ -143,7 +150,9 @@ impl Link {
         match self.standing {
             Standing::Unknown => true,
             Standing::Member | Standing::Agent => self.synced != mine || since(REFRESH),
-            Standing::Outside | Standing::NoDaemon | Standing::Unchecked => since(OUTSIDE),
+            Standing::Outside | Standing::Elsewhere | Standing::NoDaemon | Standing::Unchecked => {
+                since(OUTSIDE)
+            }
             Standing::Failed => since(RETRY),
             Standing::Removed => false,
         }
@@ -313,6 +322,9 @@ impl Fleet {
             return;
         };
         let Some(view) = &this.view else {
+            if this.read && this.error.is_none() {
+                Self::discover_due(cx, now);
+            }
             return;
         };
         let mine = view.heads.clone();

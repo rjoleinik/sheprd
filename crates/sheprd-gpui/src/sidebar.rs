@@ -20,6 +20,7 @@ mod order;
 mod rail;
 mod render;
 mod reorder;
+mod repository;
 mod row;
 mod search;
 pub(crate) mod slide;
@@ -61,6 +62,9 @@ pub(crate) use order::step as sidebar_step;
 
 #[cfg(any(test, feature = "integration-test"))]
 pub(crate) use metrics::LABEL_WIDTH;
+
+#[cfg(test)]
+pub(crate) use repository::initials as repository_initials;
 
 pub(crate) use view::cached as cached_view;
 

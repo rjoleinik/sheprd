@@ -11,6 +11,8 @@ pub enum Error {
     Answer(#[source] serde_json::Error),
     #[error(transparent)]
     Build(#[from] crate::host_build::Error),
+    #[error("Another fleet change is still running, or this computer is in a fleet now")]
+    Busy,
     #[error("The remote control daemon refused: {0}")]
     Daemon(String),
     #[error(
@@ -29,14 +31,20 @@ pub enum Error {
     NoRelays,
     #[error("The other computer's fleet did not admit this one")]
     NotAdmitted,
+    #[error("The computer is in no fleet")]
+    NotInFleet,
     #[error(
         "The relay agent runs on the host, but no relay lets it listen; check the relays' listen tokens"
     )]
     NotListening,
+    #[error("The other computer is not a member of a fleet this one can join")]
+    NotMember,
     #[error("The relay agent's service did not start on the host")]
     NotRunning,
     #[error("Could not read the account's name on the host")]
     NoUser,
+    #[error("The computer is in another fleet")]
+    OtherFleet,
     #[error("Could not reach the remote control daemon")]
     Request(#[source] sheprd_remote_control::control::Error),
     #[error("Could not run sheprd-remote-control on the host")]

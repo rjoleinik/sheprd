@@ -272,7 +272,7 @@ impl SheprdWindow {
         self.open_pane_menu(&id, position, window, cx);
     }
 
-    fn open_pane_menu(
+    pub(super) fn open_pane_menu(
         &mut self,
         id: &str,
         anchor: Point<Pixels>,

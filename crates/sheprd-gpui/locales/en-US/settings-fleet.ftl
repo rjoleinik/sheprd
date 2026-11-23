@@ -61,6 +61,7 @@ settings-fleet-machines-none = No other machine reached
 settings-fleet-machines-none-description = Machines this Sheprd connects to over SSH show here, to invite or share.
 settings-fleet-machine-member = In your fleet
 settings-fleet-machine-outside = Not in your fleet
+settings-fleet-machine-elsewhere = In another fleet
 settings-fleet-machine-failed = Could not be asked
 settings-fleet-machine-removed = Removed from your fleet
 settings-fleet-machine-unknown = Checking…
@@ -87,6 +88,33 @@ settings-fleet-unsaved = { $count ->
     [one] One fleet host could not be added to Devices
    *[other] { $count } fleet hosts could not be added to Devices
 }
+
+settings-fleet-join-card = { $machine } already has a fleet
+settings-fleet-join-card-description = { $members ->
+    [one] One member
+   *[other] { $members } members
+} and { $hosts ->
+    [0] no hosts
+    [one] one host
+   *[other] { $hosts } hosts
+}. Joining lets them reach this computer, and this computer reach them. { $machine } admits it at once: this Sheprd reaches it over SSH.
+settings-fleet-join-card-join = Join { $machine }'s fleet
+settings-fleet-join-card-through = Through { $machine }
+settings-fleet-join-card-create = Create my own
+
+settings-fleet-invite-card = { $count ->
+    [one] A computer you reach is not in your fleet
+   *[other] { $count } computers you reach are not in your fleet
+}
+settings-fleet-invite-card-description = { $machines }. Inviting { $count ->
+    [one] it lets every member open terminals on it, and it on yours.
+   *[other] them lets every member open terminals on them, and them on yours.
+}
+settings-fleet-invite-card-invite = { $count ->
+    [one] Invite it
+   *[other] Invite all { $count }
+}
+settings-fleet-invite-card-later = Not now
 
 settings-fleet-joins = Waiting to join
 settings-fleet-join-line = Phone · asked through { $device }

@@ -79,8 +79,9 @@ pub(super) fn start_pages(handle: WindowHandle<SheprdWindow>, cx: &mut App) {
             // there and then.
             let placed = check(&native)?;
             let hovered = hover(&native, handle, cx, &timer).await?;
+            let focused = keyboard_handoff(&native)?;
             let dropped = drops(&native, handle, cx, &timer).await?;
-            Ok::<_, anyhow::Error>(format!("{placed}; {hovered}; {dropped}"))
+            Ok::<_, anyhow::Error>(format!("{placed}; {hovered}; {focused}; {dropped}"))
         }
         .await;
         match result {
@@ -346,38 +347,72 @@ async fn hovered(native: &Native, timer: &BackgroundExecutor) -> Option<bool> {
     }
 }
 
-/// A mouse move to `at`, in the window.
-fn mouse_move(native: &Native, at: NSPoint) -> Result<Retained<NSEvent>> {
+/// A mouse event at `at`, in the window.
+fn mouse_event(native: &Native, at: NSPoint, kind: NSEventType) -> Result<Retained<NSEvent>> {
     // SAFETY: the documented constructor for a mouse event, with no
     // graphics context, as AppKit asks.
     let event: Option<Retained<NSEvent>> = unsafe {
         msg_send![
             NSEvent::class(),
-            mouseEventWithType: NSEventType::MouseMoved,
+            mouseEventWithType: kind,
             location: at,
             modifierFlags: NSEventModifierFlags::empty(),
             timestamp: 0_f64,
             windowNumber: native.window_number,
             context: None::<&AnyObject>,
             eventNumber: 0_isize,
-            clickCount: 0_isize,
+            clickCount: isize::from(kind != NSEventType::MouseMoved),
             pressure: 0_f32
         ]
     };
     event.context("no mouse event")
 }
 
+/// A click in GPUI must take the native keyboard back from a page, even
+/// when a child (such as the divider) consumes the click during capture.
+fn keyboard_handoff(native: &Native) -> Result<&'static str> {
+    point_at(native, native.grip)?;
+    let window = native.gpui.window().context("GPUI's view has no window")?;
+    if !window.makeFirstResponder(Some(&native.page)) {
+        bail!("the page refused the keyboard");
+    }
+    // AppKit hit-tests this point to GPUI, as checked above. Deliver the
+    // same native down/up pair without moving the person's real pointer.
+    native.gpui.mouseDown(&*mouse_event(
+        native,
+        native.grip,
+        NSEventType::LeftMouseDown,
+    )?);
+    native.gpui.mouseUp(&*mouse_event(
+        native,
+        native.grip,
+        NSEventType::LeftMouseUp,
+    )?);
+    if !window
+        .firstResponder()
+        .is_some_and(|view| std::ptr::addr_eq(&*view, &*native.gpui))
+    {
+        bail!("clicking GPUI left the keyboard in the native page");
+    }
+    if !window.makeFirstResponder(Some(&native.page)) {
+        bail!("the page could not take the keyboard back");
+    }
+    Ok("clicking GPUI returns the keyboard from the page")
+}
+
 /// Tells GPUI the pointer is at `at`, as a mouse move to its view alone
 /// would: nothing is posted to the system, and the real pointer stays.
 fn point_at(native: &Native, at: NSPoint) -> Result<()> {
-    native.gpui.mouseMoved(&*mouse_move(native, at)?);
+    native
+        .gpui
+        .mouseMoved(&*mouse_event(native, at, NSEventType::MouseMoved)?);
     Ok(())
 }
 
 /// Tells the page the pointer is at `at`, as AppKit does, through the owner
 /// of the page's area that tracks mouse moves.
 fn track(native: &Native, at: NSPoint) -> Result<()> {
-    let event = mouse_move(native, at)?;
+    let event = mouse_event(native, at, NSEventType::MouseMoved)?;
     let owner = native
         .page
         .trackingAreas()

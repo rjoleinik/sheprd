@@ -54,6 +54,8 @@ mod link_intents;
 #[cfg(unix)]
 mod link_recovery;
 #[cfg(unix)]
+mod no_fleet;
+#[cfg(unix)]
 mod offline;
 #[cfg(unix)]
 mod opening;

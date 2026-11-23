@@ -13,7 +13,7 @@ const TERMINAL_SAMPLE: &str = "let answer = 42;\nif answer != 0 {\n    println!(
 
 #[cfg(all(feature = "integration-test", target_os = "macos"))]
 #[derive(Default)]
-struct NativeBounds(std::collections::HashMap<String, Bounds<Pixels>>);
+struct NativeBounds(HashMap<String, Bounds<Pixels>>);
 #[cfg(all(feature = "integration-test", target_os = "macos"))]
 impl Global for NativeBounds {}
 

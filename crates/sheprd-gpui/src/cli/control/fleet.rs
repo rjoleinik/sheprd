@@ -22,6 +22,16 @@ pub enum FleetCommand {
     Scrub {
         machine: String,
     },
+    /// Ask in Settings > Fleet to invite a computer this Sheprd reaches,
+    /// by device ID or name, or all of them with none named (`--all`).
+    Invite {
+        machine: Option<String>,
+    },
+    /// Offer in Settings > Fleet to join the fleet of a computer this
+    /// Sheprd reaches, optionally named by device ID or name.
+    Join {
+        machine: Option<String>,
+    },
 }
 
 pub(super) fn fleet(args: &mut Args) -> Result<FleetCommand, CliError> {
@@ -51,6 +61,21 @@ pub(super) fn fleet(args: &mut Args) -> Result<FleetCommand, CliError> {
                 command: "fleet scrub",
                 what: "MACHINE",
             })?,
+        },
+        Some("invite") => {
+            // `--all` says what no name says, for whoever reads the line.
+            let all = args.flag("--all");
+            let machine = args.words()?;
+            if all == machine.is_some() {
+                return Err(CliError::MissingArgument {
+                    command: "fleet invite",
+                    what: "MACHINE or --all",
+                });
+            }
+            FleetCommand::Invite { machine }
+        }
+        Some("join") => FleetCommand::Join {
+            machine: args.words()?,
         },
         _ => return Err(unknown("fleet", verb)),
     })

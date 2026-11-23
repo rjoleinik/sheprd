@@ -94,6 +94,17 @@ fn main() -> ExitCode {
                     state_dir,
                     control::fleet::sync::Ask::Intro,
                 )?),
+                FleetAction::Status => print_json(&fleet::run_ask(
+                    state_dir,
+                    control::fleet::sync::Ask::Status,
+                )?),
+                FleetAction::Admit => {
+                    let mut text = String::new();
+                    std::io::stdin().take(MAX_INPUT).read_to_string(&mut text)?;
+                    let admission: control::fleet::sync::Admission =
+                        serde_json::from_str(&text).map_err(std::io::Error::from)?;
+                    print_json(&fleet::run_admit(state_dir, admission)?)
+                }
                 FleetAction::Scrub => {
                     fleet::run_scrub(state_dir)?;
                     print_json(&serde_json::json!({ "scrubbed": true }))

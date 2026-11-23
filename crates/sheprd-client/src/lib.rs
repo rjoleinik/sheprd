@@ -19,6 +19,7 @@ pub mod edited;
 mod environment;
 mod error;
 mod event;
+pub mod filesystem;
 mod forward;
 mod frame;
 mod handle;

@@ -33,6 +33,7 @@
 //! by the handle's environment, so a paired device cannot make the daemon
 //! post anywhere else.
 
+mod activity;
 pub(crate) mod alert;
 mod decide;
 mod delivery;
@@ -54,7 +55,7 @@ pub(crate) use ledger::{Kind, Ledger};
 pub(crate) use pacer::Pacer;
 #[cfg(test)]
 pub(crate) use payload::ATTRIBUTES_TYPE;
-pub(crate) use payload::{Alert, Attributes, ContentState, Event, Live, Phase};
+pub(crate) use payload::{Alert, Attributes, ContentState, Detail, Event, Live, Phase};
 pub(crate) use recipient::Handle;
 pub(crate) use recipient::Recipient;
 pub(crate) use sheprd_apns::{DeviceToken, Priority, Push, PushType, seal};

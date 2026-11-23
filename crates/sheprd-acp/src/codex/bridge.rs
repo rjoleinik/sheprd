@@ -597,8 +597,8 @@ impl Bridge {
     }
 }
 
-/// One block of an ACP prompt as Codex's input. A file sent as a link is a
-/// mention, which Codex reads itself.
+/// One block of an ACP prompt as Codex's input. Resource links must be text:
+/// Codex mentions select apps/plugins and do not put file paths in model input.
 fn input(block: &wire::ContentBlock) -> Option<Value> {
     let text = |text: String| Some(json!({"type": "text", "text": text, "text_elements": []}));
     match block {
@@ -613,11 +613,11 @@ fn input(block: &wire::ContentBlock) -> Option<Value> {
             }
             _ => None,
         },
-        wire::ContentBlock::ResourceLink(link) => Some(json!({
-            "type": "mention",
-            "name": link.name,
-            "path": out::file_path(&link.uri),
-        })),
+        wire::ContentBlock::ResourceLink(link) => text(format!(
+            "Attached file: {}\nLocation: {}\nThe file contents were not embedded. Use available tools to inspect this attachment.",
+            json!(link.name),
+            json!(out::file_path(&link.uri)),
+        )),
         _ => None,
     }
 }

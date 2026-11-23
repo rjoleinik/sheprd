@@ -4,7 +4,8 @@
 //! decides what goes with it), removing a host, inviting a computer this
 //! Sheprd reaches, and sharing a host with the computers ticked ask first,
 //! by a second click; creating the fleet and each computer's access switch
-//! act at once. The daemon signs; [`Fleet`] carries the log to the other
+//! act at once, as do joining a fleet and inviting every computer reached,
+//! whose cards say what follows before the click ([`banner`]). The daemon signs; [`Fleet`] carries the log to the other
 //! machines.
 
 use super::{SettingsWindow, ui};
@@ -20,6 +21,7 @@ use sheprd_remote_control::control::fleet::{
 };
 use std::collections::BTreeSet;
 
+mod banner;
 mod joins;
 mod scrub;
 
@@ -42,6 +44,10 @@ pub(in crate::settings_window) struct FleetPage {
     admitting: Option<String>,
     /// The last failure, for a person.
     error: Option<String>,
+    /// The person put off inviting the computers reached, for this visit.
+    not_now: bool,
+    /// The member `sheprd fleet join` named, to join through first.
+    join_through: Option<String>,
 }
 
 /// What Settings > Fleet opens asking, from `sheprd fleet`.
@@ -54,6 +60,13 @@ pub(crate) enum Pending {
     RemoveHost(String),
     /// Whether to remove every way a fleet reaches this machine.
     Scrub(String),
+    /// Whether to invite this machine.
+    Invite(String),
+    /// Whether to invite every computer reached that is in no fleet.
+    InviteAll,
+    /// Whether to join the fleet a computer reached is a member of,
+    /// through this one when named.
+    Join(Option<String>),
 }
 
 /// Opens Settings at Fleet, asking what `pending` says.
@@ -74,6 +87,10 @@ pub(crate) fn open(source: WeakEntity<crate::SheprdWindow>, pending: Pending, cx
                 Pending::Remove(member) => view.fleet.removing = Some((member, None)),
                 Pending::RemoveHost(host) => view.fleet.removing_host = Some(host),
                 Pending::Scrub(machine) => view.fleet.scrubbing = Some(machine),
+                Pending::Invite(machine) => view.fleet.inviting = Some(machine),
+                Pending::InviteAll => view.fleet.not_now = false,
+                // The card shows while this computer is in no fleet.
+                Pending::Join(machine) => view.fleet.join_through = machine,
             }
             cx.notify();
         });
@@ -84,6 +101,7 @@ impl SettingsWindow {
     /// The page shows: read the fleet now.
     pub(in crate::settings_window) fn open_fleet(&mut self, cx: &mut Context<Self>) {
         Fleet::refresh(cx);
+        Fleet::rediscover(cx);
     }
 
     /// The page went away.
@@ -167,13 +185,17 @@ impl SettingsWindow {
                 return page.child(row).children(self.fleet_scrub_only(cx));
             }
             let reading = !Fleet::read(cx);
+            // Not while a join runs: this computer may be in that fleet soon.
+            let can_create = !reading && !Fleet::busy(cx);
             let create = ui::button(
                 theme,
                 "fleet-create",
                 fl!("settings-fleet-create"),
-                !reading,
+                can_create,
             )
-            .on_click(cx.listener(|this, _, _, cx| this.fleet_act(Ask::Found, cx)));
+            .when(can_create, |button| {
+                button.on_click(cx.listener(|this, _, _, cx| this.fleet_act(Ask::Found, cx)))
+            });
             let row = ui::row(theme, "fleet-create-row", fl!("settings-fleet-none"))
                 .description(match Fleet::error(cx) {
                     Some(error) => fl!(
@@ -184,6 +206,11 @@ impl SettingsWindow {
                     None => fl!("settings-fleet-none-description"),
                 })
                 .control(create);
+            // A fleet to join puts Create in its card instead.
+            let cards = self.fleet_join_cards(cx);
+            if !cards.is_empty() {
+                return page.children(cards).children(self.fleet_scrub_only(cx));
+            }
             return page.child(row).children(self.fleet_scrub_only(cx));
         };
         page = page.children(self.fleet_notices(&view));
@@ -227,6 +254,7 @@ impl SettingsWindow {
                 )
                 .children(self.fleet_scrub_only(cx));
         }
+        page = page.children(self.fleet_invite_card(cx));
         let joins = self.fleet_joins(&view, cx);
         if !joins.is_empty() {
             page = page
@@ -526,6 +554,7 @@ impl SettingsWindow {
                 Standing::Member => fl!("settings-fleet-machine-member"),
                 Standing::Agent => fl!("settings-fleet-machine-agent"),
                 Standing::Outside => fl!("settings-fleet-machine-outside"),
+                Standing::Elsewhere => fl!("settings-fleet-machine-elsewhere"),
                 Standing::NoDaemon => fl!("settings-fleet-machine-no-daemon"),
                 Standing::Unchecked => fl!("settings-fleet-machine-unchecked"),
                 Standing::Failed => fl!("settings-fleet-machine-failed"),
@@ -551,7 +580,7 @@ impl SettingsWindow {
             let scrub = self.fleet_scrub_button(index, &id, acting, cx);
             if matches!(
                 standing,
-                Standing::Member | Standing::Agent | Standing::Unchecked
+                Standing::Member | Standing::Agent | Standing::Elsewhere | Standing::Unchecked
             ) || acting
             {
                 rows.push(row.description(line).control(scrub));

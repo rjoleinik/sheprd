@@ -6,6 +6,7 @@ fn live(pane: &str, event: Event, phase: Phase, step: &str) -> Live {
         event,
         pane: pane.to_owned(),
         state: ContentState {
+            detail: Default::default(),
             options: Vec::new(),
             permission: None,
             phase,

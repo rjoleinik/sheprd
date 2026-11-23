@@ -41,6 +41,28 @@ fn fleet_intro_and_scrub_parse() {
 }
 
 #[test]
+fn fleet_status_and_admit_parse() {
+    assert_eq!(
+        parse(args(&["fleet", "status"])).unwrap(),
+        Invocation::Fleet {
+            state_dir: None,
+            action: FleetAction::Status,
+        }
+    );
+    assert_eq!(
+        parse(args(&["fleet", "admit", "--state-dir", "/tmp/s"])).unwrap(),
+        Invocation::Fleet {
+            state_dir: Some("/tmp/s".into()),
+            action: FleetAction::Admit,
+        }
+    );
+    assert!(matches!(
+        parse(args(&["fleet", "admit", "--fleet", FLEET])),
+        Err(ParseError::Unknown(_))
+    ));
+}
+
+#[test]
 fn fleet_refuses_what_it_does_not_take() {
     assert_eq!(
         parse(args(&["fleet", "bundle"])).unwrap_err(),
@@ -60,6 +82,6 @@ fn fleet_refuses_what_it_does_not_take() {
     ));
     assert_eq!(
         parse(args(&["fleet"])).unwrap_err(),
-        ParseError::Missing("apply, bundle, intro, or scrub")
+        ParseError::Missing("apply, bundle, intro, scrub, status, or admit")
     );
 }

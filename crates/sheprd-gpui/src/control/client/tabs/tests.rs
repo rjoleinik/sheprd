@@ -3,6 +3,7 @@ use super::*;
 use crate::control::protocol::tabs::TabKind;
 
 mod items;
+mod machine_capacity;
 
 #[test]
 fn tabs_are_listed_one_per_line() {

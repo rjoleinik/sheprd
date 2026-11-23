@@ -1,12 +1,15 @@
 //! The fleet's halves on another machine, run over SSH as
 //! `relay_sharing` offers relays: `sheprd-remote-control fleet apply`,
-//! `fleet bundle`, and `fleet intro`. Everything here blocks: run it on the
-//! background executor.
+//! `fleet bundle`, `fleet intro`, `fleet status`, and `fleet admit`.
+//! Everything here blocks: run it on the background executor.
 
 use super::Error;
 use crate::teleport::Host;
 use sheprd_client::{ConnectTarget, ScriptLimits};
-use sheprd_remote_control::control::fleet::sync::{Answer, Applied, Apply, MAX_REQUEST_BYTES};
+use sheprd_remote_control::control::fleet::{
+    View,
+    sync::{Admission, Answer, Applied, Apply, MAX_REQUEST_BYTES},
+};
 use std::{sync::atomic::AtomicBool, time::Duration};
 
 /// What `fleet apply` may print: an answer carries at most
@@ -17,12 +20,13 @@ const IDLE: Duration = Duration::from_secs(30);
 /// Finds the program without installing it, as `relay_sharing` does. A
 /// host without one, or with a build older than the fleet, prints
 /// nothing. `ARGS` is replaced with the subcommand's fixed arguments.
-const SCRIPT: &str = "\
-program=$(command -v sheprd-remote-control || command -v herdr-remote-control || true)
-[ -n \"$program\" ] || program=\"$HOME/.local/bin/sheprd-remote-control\"
+const SCRIPT: &str = concat!(
+    crate::remote::program::find_program!(),
+    "\
 if [ -x \"$program\" ]; then \"$program\" fleet ARGS 2>/dev/null || true; fi
 cat >/dev/null
-";
+"
+);
 
 fn run(
     target: &ConnectTarget,
@@ -87,6 +91,36 @@ pub(super) fn intro(target: &ConnectTarget, cancelled: &AtomicBool) -> Result<St
     }
 }
 
+/// The fleet the host's daemon keeps, `None` when it is in none.
+pub(super) fn status(
+    target: &ConnectTarget,
+    cancelled: &AtomicBool,
+) -> Result<Option<View>, Error> {
+    let output = run(target, "status", b"", cancelled)?;
+    match serde_json::from_slice(&output).map_err(Error::Answer)? {
+        Answer::Status { view } => Ok(view.map(|view| *view)),
+        _ => Err(Error::Unexpected),
+    }
+}
+
+/// Has the host's daemon admit this computer, whose bundle and signature
+/// `admission` holds. A daemon that refuses prints nothing.
+pub(super) fn admit(
+    target: &ConnectTarget,
+    admission: &Admission,
+    cancelled: &AtomicBool,
+) -> Result<(), Error> {
+    let input = serde_json::to_vec(admission).map_err(Error::Answer)?;
+    let output = match run(target, "admit", &input, cancelled) {
+        Err(Error::NoProgram) => return Err(Error::NotAdmitted),
+        output => output?,
+    };
+    match serde_json::from_slice(&output).map_err(Error::Answer)? {
+        Answer::Done => Ok(()),
+        _ => Err(Error::Unexpected),
+    }
+}
+
 /// An `apply` answer; anything else, such as a host that refused because
 /// it is in no fleet, is an error that says so.
 pub(crate) fn parse_applied(output: &[u8]) -> Result<Applied, Error> {
@@ -105,9 +139,9 @@ pub(crate) fn parse_applied(output: &[u8]) -> Result<Applied, Error> {
 /// one Sheprd installs and its service runs, `~/.local/bin`'s, never
 /// another copy earlier on `PATH`, which would scrub other state or none.
 /// Every daemon program that may hold fleet state is scrubbed, the
-/// installed one and any `sheprd-remote-control` or `herdr-remote-control`
-/// on `PATH`, once each by resolved path; it succeeds only if every one
-/// that may hold the fleet was scrubbed.
+/// installed one, any `sheprd-remote-control` or `herdr-remote-control`
+/// on `PATH`, and a macOS app bundle's, once each by resolved path; it
+/// succeeds only if every one that may hold the fleet was scrubbed.
 pub(super) const SCRUB: &str = "\
 cleared=false
 failed=false
@@ -120,7 +154,7 @@ if [ -x \"$agent\" ]; then
   esac
 fi
 seen='|'
-for program in \"$HOME/.local/bin/sheprd-remote-control\" \"$(command -v sheprd-remote-control || true)\" \"$(command -v herdr-remote-control || true)\"; do
+for program in \"$HOME/.local/bin/sheprd-remote-control\" \"$(command -v sheprd-remote-control || true)\" \"$(command -v herdr-remote-control || true)\" \"$HOME/Applications/Sheprd.app/Contents/MacOS/sheprd-remote-control\" /Applications/Sheprd.app/Contents/MacOS/sheprd-remote-control; do
   [ -n \"$program\" ] && [ -x \"$program\" ] || continue
   real=$(realpath \"$program\" 2>/dev/null || readlink -f \"$program\" 2>/dev/null || printf '%s' \"$program\")
   case \"$seen\" in *\"|$real|\"*) continue ;; esac

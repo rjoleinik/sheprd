@@ -150,6 +150,10 @@ pub(super) fn devices(context: &Context) -> crate::Result<Output> {
 
 pub(super) fn machine(command: MachineCommand, context: &Context) -> crate::Result<Output> {
     match command {
+        MachineCommand::Claim { name, wait } => machine_agent::claim(name, wait, context),
+        MachineCommand::Release { name } => {
+            context.act(Request::Tab, TabOp::MachineRelease { name })
+        }
         MachineCommand::Open { name } => {
             let response = context.call(Request::Tab, TabOp::Machine { name })?;
             opened("the machine", response)
@@ -230,16 +234,31 @@ pub(super) fn machine(command: MachineCommand, context: &Context) -> crate::Resu
 
 fn machines(response: Response) -> crate::Result<Output> {
     let Response::Tab {
-        reply: Reply::Machines { machines },
+        reply: Reply::Machines { machines, capacity },
     } = response
     else {
         return Err(unexpected(response));
     };
-    let json = serde_json::json!({ "machines": machines });
-    if machines.is_empty() {
-        return Ok(Output::data("No virtual Macs", &json)?.nothing());
+    let json = serde_json::json!({ "machines": machines, "capacity": capacity });
+    let mut lines = Vec::new();
+    if let Some(capacity) = capacity {
+        lines.push(format!(
+            "VM slots: {} of {} in use, {} available{}",
+            capacity.in_use,
+            capacity.limit,
+            capacity.available,
+            if capacity.available == 0 {
+                ". No VM slots available; wait or reuse an unreserved running VM."
+            } else {
+                ""
+            }
+        ));
     }
-    let lines: Vec<String> = machines.iter().map(machine_line).collect();
+    if machines.is_empty() {
+        lines.push("No virtual Macs".into());
+        return Ok(Output::data(lines.join("\n"), &json)?.nothing());
+    }
+    lines.extend(machines.iter().map(machine_line));
     Output::data(lines.join("\n"), &json)
 }
 
@@ -264,13 +283,14 @@ fn image_line(image: &MachineImageInfo) -> String {
 
 fn machine_line(machine: &MachineInfo) -> String {
     format!(
-        "{}\t{}\t{} CPUs\t{} GB\t{}\t{:.1} GB on disk",
+        "{}\t{}\t{} CPUs\t{} GB\t{}\t{:.1} GB on disk\t{}",
         machine.name,
         machine.state.name(),
         machine.cpus,
         machine.memory_gib,
         machine.display,
         machine.disk_bytes as f64 / 1e9,
+        machine.reservation.as_deref().unwrap_or("unreserved"),
     )
 }
 

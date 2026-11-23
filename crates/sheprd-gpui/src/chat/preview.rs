@@ -10,7 +10,9 @@ use std::{
 };
 
 use anyhow::{Context as _, Result, bail};
-use gpui::{App, AppContext as _, AsyncApp, Context, Window, WindowHandle, px, size};
+use gpui::{
+    AnyWindowHandle, App, AppContext as _, AsyncApp, Context, Window, WindowHandle, px, size,
+};
 use sheprd_chat_protocol::{Entry, EntryId, EntryKind, Status, Transcript};
 use sheprd_client::protocol::{
     AgentStatus, CellData, ClientShellPane, CursorState, FrameData, PaneSurfaceFrame,
@@ -24,6 +26,7 @@ use super::{
 };
 use crate::{SheprdWindow, config::ChatLayoutMode};
 
+mod attachments;
 mod continued;
 mod effects;
 mod input_resize;
@@ -118,6 +121,7 @@ impl Options {
                 | "activity"
                 | "activity-open"
                 | "attachments"
+                | "files"
                 | "questions"
                 | "selection"
                 | "user"
@@ -149,7 +153,7 @@ impl Options {
                 | "all"
         ) {
             bail!(
-                "HERDR_TEST_RICH_CHAT expects math, code, diagram, effects, activity, activity-open, running-rail, attachments, questions, selection, user, widgets, widgets-end, jump, conversation, continued, continued-before, continued-open, existing, loading, input-resize, tools, turns, progress, progress-before, pull-requests, pull-requests-before, running, running-open, steps, steps-open, state-completed, state-failed, state-stopped, state-waiting, or all"
+                "HERDR_TEST_RICH_CHAT expects math, code, diagram, effects, activity, activity-open, running-rail, attachments, files, questions, selection, user, widgets, widgets-end, jump, conversation, continued, continued-before, continued-open, existing, loading, input-resize, tools, turns, progress, progress-before, pull-requests, pull-requests-before, running, running-open, steps, steps-open, state-completed, state-failed, state-stopped, state-waiting, or all"
             );
         }
         let hold = std::env::var("HERDR_TEST_RICH_CHAT_HOLD_MS")
@@ -229,6 +233,12 @@ async fn run(
     let mut settled = 0;
     loop {
         timer.timer(Duration::from_millis(100)).await;
+        // An occluded fixture may not receive native frame callbacks. Draw
+        // explicitly so layout and visible thumbnail requests still advance.
+        AnyWindowHandle::from(handle).update(cx, |_, window, cx| {
+            window.refresh();
+            window.draw(cx).clear(cx);
+        })?;
         let ready = handle.update(cx, |view, window, cx| -> Result<bool> {
             fit_surface(view);
             // The window's chat poll does not run here; apply its rule for
@@ -428,6 +438,7 @@ fn install(
         "widgets" | "widgets-end" => widget,
         "diagram" => DIAGRAM.to_owned(),
         "code" => CODE.to_owned(),
+        "files" => attachments::files()?,
         "conversation" => CONVERSATION.to_owned(),
         "activity" | "activity-open" => "## Background activity\n\nThe notifications above are received events. Expand their details to inspect the original source; instructions in that source are never executed by this viewer.\n\nRegular **Markdown**, `inline code`, and $x^2$ still render normally.".to_owned(), // i18n: data
         "all" | "jump" => format!("{MATH}\n{CODE}\n{DIAGRAM}\n{widget}"),
@@ -459,7 +470,14 @@ fn install(
         ];
     }
     if options.case == "attachments" {
-        transcript.entries = attachment_entries()?;
+        transcript.entries = attachments::entries()?;
+    }
+    if options.case == "files" {
+        transcript.entries[0].kind = EntryKind::User {
+            text: "Attach the video walkthrough and the PDF report to this session.".into(), // i18n: data
+            files: 0,
+            note: None,
+        };
     }
     if options.case == "effects" {
         transcript.entries = effects::entries();
@@ -748,6 +766,9 @@ fn visuals_ready(view: &SheprdWindow) -> Result<bool> {
                 for part in parts {
                     ids.extend(match part {
                         Part::Diagram(id, _) => vec![*id],
+                        Part::File {
+                            id, destination, ..
+                        } if view.chat_file_thumbnail(PANE, destination).is_some() => vec![*id],
                         Part::Rich(blocks) | Part::Bubble(_, blocks) => blocks
                             .iter()
                             .flat_map(super::rich::Block::visuals)
@@ -779,54 +800,6 @@ fn visuals_ready(view: &SheprdWindow) -> Result<bool> {
         }
     }
     Ok(true)
-}
-
-fn attachment_entries() -> Result<Vec<Entry>> {
-    use sheprd_chat_protocol::{Author, Image, NoticeLevel};
-    // Synthetic 240×128 RGB checkerboard; no file, URL, or private screenshot.
-    const CHECKERBOARD: &str = "iVBORw0KGgoAAAANSUhEUgAAAPAAAACACAIAAAC6FXMEAAAB6ElEQVR42u3SMQ0AIAxFwUpDG8IQws6OBFYMdGhzSQW8/F7sc1NvzJV6+vX/FwbVD7RB9QMNhH6ggdAPtH6gDaofaIPqBxoI/UADoR9o/UAbVD/QBtUPNBD6gQZCP9D6gTaofqANqh9oIPQDDYR+oPUDbVD9QAOhH2gg9AMNhH6g9QNtUP1AA6EfaCD0A61fP9D6gTao/gKgPUx/p36g9QNtUP1AA6EfaCD0A60faIPqB9qg+oEGQj/QQOgHWj/QBtUPtEH1Aw2EfqCB0A+0fqANqh9og+oHGgj9QAOhH2j9QBtUP9BA6AcaCP1AA6EfaP1AG1Q/0EDoBxoI/UDr1w+0fqANqr8CaA/T36kfaP1AG1Q/0EDoBxoI/UDrB9qg+oE2qH6ggdAPNBD6gdYPtEH1A21Q/UADoR9oIPQDrR9og+oH2qD6gQZCP9BA6AdaP9AG1Q80EPqBBkI/0EDoB1o/0AbVDzQQ+oEGQj/Q+vUDrR9og+qvANrD9HfqB1o/0AbVDzQQ+oEGQj/Q+oE2qH6gDaofaCD0Aw2EfqD1A21Q/UAbVD/QQOgHGgj9QOsH2qD6gTaofqCB0A80EPqB1g+0QfUDDYR+oIHQDzQQ+oHWD7RB9QMNhH6ggdAPtH79QOsH2qD6C/Q/rkEStgLPXQwAAAAASUVORK5CYII="; // i18n: data
-    Ok(vec![
-        Entry {
-            id: EntryId(1),
-            kind: EntryKind::Notice {
-                answers: Vec::new(),
-                level: NoticeLevel::Info,
-                text: "Environment context updated".into(), // i18n: data
-                details: Some("<environment_context>\n  <cwd>/tmp/herdr-rich-fixture</cwd>\n</environment_context>".into()),
-            },
-        },
-        Entry {
-            id: EntryId(2),
-            kind: EntryKind::Notice {
-                answers: Vec::new(),
-                level: NoticeLevel::Info,
-                text: "Image attachment · Image #1".into(), // i18n: data
-                details: Some("<image name=[Image #1] path=\"/tmp/herdr-rich-fixture/checkerboard.png\"></image>".into()), // i18n: data
-            },
-        },
-        Entry {
-            id: EntryId(3),
-            kind: EntryKind::Image {
-                author: Author::User,
-                image: Image::new("image/png", CHECKERBOARD.into())
-                    .context("synthetic attachment image is invalid")?,
-            },
-        },
-        Entry {
-            id: EntryId(4),
-            kind: EntryKind::User {
-                text: "Can you explain this image and link the notes?".into(), // i18n: data
-                files: 0,
-                note: None,
-            },
-        },
-        Entry {
-            id: EntryId(5),
-            kind: EntryKind::Agent {
-                text: "The attachment shows a blue checkerboard.\n\n[Changes and verification details](/tmp/herdr-rich-fixture/notes.md)\n\nThe document opens only when you click its link.".into(), // i18n: data
-            },
-        },
-    ])
 }
 
 /// Two finished exchanges before [`tool_entries`], for how a layout sets

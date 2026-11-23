@@ -26,7 +26,7 @@ impl SheprdWindow {
     }
 
     /// Tall enough for the window controls where the bar carries them.
-    fn application_bar_height(&self, window: &Window) -> f32 {
+    pub(crate) fn application_bar_height(&self, window: &Window) -> f32 {
         let font = &self.config.ui;
         if crate::titlebar::show_controls(self.config.show_window_controls, window) {
             (font.line_height() + 8.).max(crate::titlebar::HEIGHT)

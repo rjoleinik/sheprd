@@ -19,6 +19,8 @@ pub(super) fn fleet(command: FleetCommand, context: &Context) -> crate::Result<O
         FleetCommand::Remove { member } => (FleetOp::Remove { member }, Part::All),
         FleetCommand::RemoveHost { host } => (FleetOp::RemoveHost { host }, Part::All),
         FleetCommand::Scrub { machine } => (FleetOp::Scrub { machine }, Part::All),
+        FleetCommand::Invite { machine } => (FleetOp::Invite { machine }, Part::All),
+        FleetCommand::Join { machine } => (FleetOp::Join { machine }, Part::All),
     };
     match context.call(Request::Fleet, op)? {
         Response::Done { message } => Ok(Output::message(message)),

@@ -109,6 +109,7 @@ impl Bundle {
     /// Reads machine `name`'s folder. It reaches the disk, so it runs off the
     /// main thread.
     pub(super) fn read(name: &Name) -> Result<Self> {
+        store::require_installed_name(name)?;
         Self::read_in(&store::folder(name)?, true)
     }
 

@@ -19,7 +19,7 @@ impl Outcome {
         self.result
     }
 
-    #[cfg(all(test, unix))]
+    #[cfg(test)]
     pub(super) fn unwatched(result: Result<TerminalInfo, sheprd_core_client::Error>) -> Self {
         Self {
             result,

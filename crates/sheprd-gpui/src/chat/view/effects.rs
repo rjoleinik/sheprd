@@ -68,7 +68,14 @@ impl SheprdWindow {
             size: voice.size * pose.scale,
             ..voice
         };
-        let content = self.render_chat_rich(pane_id, blocks, visuals, scope, voice, cx);
+        let content = self.render_chat_rich(
+            (pane_id, crate::chat::view::rich::links::Mode::Configured),
+            blocks,
+            visuals,
+            scope,
+            voice,
+            cx,
+        );
         let moving = pose != Pose::REST;
         // The specks move a step at a time while they shimmer, then stay.
         let frame = t

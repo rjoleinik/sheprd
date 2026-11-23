@@ -160,7 +160,7 @@ struct IPadRoot: View {
                 NavigationStack(path: $workspacesPath) { WorkspacesTab(query: $query).toolbar { hideSidebar }.makesRoomForConnectionToast() }
                     .connectionToast(pairing: $pairing)
             }
-            Tab("Pull Requests", systemImage: "arrow.triangle.pull", value: SidebarTab.pullRequests) {
+            Tab("PRs", systemImage: "arrow.triangle.pull", value: SidebarTab.pullRequests) {
                 NavigationStack { PullRequestsList().toolbar { hideSidebar }.makesRoomForConnectionToast() }
                     .connectionToast(pairing: $pairing)
             }

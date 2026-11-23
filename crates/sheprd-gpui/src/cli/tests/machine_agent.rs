@@ -134,3 +134,28 @@ fn machine_setup_opens_the_guide_for_a_name_or_the_default() {
         }
     );
 }
+
+#[test]
+fn machine_reservation_commands_parse_and_bound_waits() {
+    assert_eq!(
+        machine(&["machine", "claim", "one", "--wait", "60"]),
+        MachineCommand::Claim {
+            name: "one".into(),
+            wait: 60
+        }
+    );
+    assert_eq!(
+        machine(&["machine", "claim", "one"]),
+        MachineCommand::Claim {
+            name: "one".into(),
+            wait: 0
+        }
+    );
+    assert_eq!(
+        machine(&["machine", "release", "one"]),
+        MachineCommand::Release { name: "one".into() }
+    );
+    for seconds in ["0", "601", "oops"] {
+        assert!(LaunchOptions::parse(["machine", "claim", "one", "--wait", seconds]).is_err());
+    }
+}

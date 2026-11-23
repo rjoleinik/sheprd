@@ -1,0 +1,4 @@
+# These tiny native-test inputs must survive Windows checkout byte-for-byte,
+# and be available to tests without fetching the screencasts' LFS objects.
+*.pdf binary
+*.mp4 -filter binary

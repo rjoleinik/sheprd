@@ -17,6 +17,7 @@ mod indicator;
 pub(crate) use indicator::MENU_WIDTH;
 pub(crate) mod links;
 pub(crate) mod nearby;
+pub(crate) mod program;
 pub(crate) mod public_relays;
 pub(crate) mod relay_token;
 mod revoke;

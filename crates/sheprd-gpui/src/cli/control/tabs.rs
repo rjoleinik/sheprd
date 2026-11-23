@@ -40,6 +40,13 @@ impl From<OsString> for FileAt {
 /// `machine`: a virtual Mac on this computer.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MachineCommand {
+    Claim {
+        name: String,
+        wait: u64,
+    },
+    Release {
+        name: String,
+    },
     Open {
         name: String,
     },
@@ -197,6 +204,13 @@ pub(super) fn machine(args: &mut Args) -> Result<MachineCommand, CliError> {
                 .unwrap_or_else(|| "default".to_owned()),
         },
         Some("list") => MachineCommand::List,
+        Some("claim") => MachineCommand::Claim {
+            wait: args.number("--wait", 1..=600_u64)?.unwrap_or(0),
+            name: args.required_text("NAME")?,
+        },
+        Some("release") => MachineCommand::Release {
+            name: args.required_text("NAME")?,
+        },
         Some("set") => MachineCommand::Set {
             cpus: args.number("--cpus", 1..=u16::MAX)?,
             memory_gib: args.number("--memory", 1..=u16::MAX)?,

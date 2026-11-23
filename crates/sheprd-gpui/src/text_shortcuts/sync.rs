@@ -20,20 +20,22 @@ const IDLE: Duration = Duration::from_secs(20);
 /// shortcuts refuses the subcommand and prints nothing, as a machine without
 /// the program does. Standard input is drained so the sender is never left
 /// writing to no one.
-pub(crate) const SCRIPT: &str = "\
-program=$(command -v sheprd-remote-control || command -v herdr-remote-control || true)
-[ -n \"$program\" ] || program=\"$HOME/.local/bin/sheprd-remote-control\"
+pub(crate) const SCRIPT: &str = concat!(
+    crate::remote::program::find_program!(),
+    "\
 if [ -x \"$program\" ]; then \"$program\" shortcuts --offer 2>/dev/null || true; fi
 cat >/dev/null
-";
+"
+);
 
 /// As [`SCRIPT`], reading the shortcuts without offering any.
-pub(crate) const READ_SCRIPT: &str = "\
-program=$(command -v sheprd-remote-control || command -v herdr-remote-control || true)
-[ -n \"$program\" ] || program=\"$HOME/.local/bin/sheprd-remote-control\"
+pub(crate) const READ_SCRIPT: &str = concat!(
+    crate::remote::program::find_program!(),
+    "\
 if [ -x \"$program\" ]; then \"$program\" shortcuts 2>/dev/null || true; fi
 cat >/dev/null
-";
+"
+);
 
 /// Offers `offer`, if any, to the computer's daemon and returns the
 /// shortcuts that stand, or `None` when the computer has nothing that keeps

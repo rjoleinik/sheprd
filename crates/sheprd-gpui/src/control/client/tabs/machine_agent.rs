@@ -87,5 +87,27 @@ pub(super) fn screenshot(name: String, path: &Path, context: &Context) -> crate:
     }
 }
 
+/// Wait in the CLI process, never on the app thread. Progress stays on
+/// stderr so --json retains one machine-readable result on stdout.
+pub(super) fn claim(name: String, wait: u64, context: &Context) -> crate::Result<Output> {
+    use crate::control::protocol::ErrorCode;
+    use std::time::{Duration, Instant};
+    let deadline = Instant::now() + Duration::from_secs(wait);
+    loop {
+        match context.act(Request::Tab, TabOp::MachineClaim { name: name.clone() }) {
+            Err(crate::Error::Control(crate::control::Error::Rejected {
+                code: ErrorCode::Busy,
+                ref message,
+            })) if Instant::now() < deadline => {
+                eprintln!("Waiting for an available macOS VM: {message}");
+                std::thread::sleep(
+                    Duration::from_secs(5).min(deadline.saturating_duration_since(Instant::now())),
+                );
+            }
+            result => return result,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests;

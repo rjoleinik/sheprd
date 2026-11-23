@@ -1,5 +1,6 @@
 //! Orca's worktree cards: a status column beside the name, a quieter meta line
-//! with the host, branch, and pull request, and compact single-line agents.
+//! with the repository chip, host, branch, and pull request, and compact
+//! single-line agents.
 //! Cards are inset and rounded; the focused one is washed and outlined.
 //! Rows Herdr's sidebar config defines fill the card with its lines instead,
 //! beside the status column only when those lines lead with the status.
@@ -8,6 +9,7 @@ use super::{
     super::{
         cell::{AgentRow, RowContext, RowLayout, RowState, WorkspaceRow},
         line_height,
+        repository::Tile,
         row::{Elbow, RowBadge, RowKind, RowTree, TokenLook, guide, left_behind, token_column},
         scaled,
         tokens::ResolvedToken,
@@ -156,6 +158,7 @@ impl RowLayout for Orca {
             label,
             tree,
             icon,
+            repository,
             fold,
             grouped,
             badge,
@@ -268,6 +271,9 @@ impl RowLayout for Orca {
                     }),
                 label,
             )
+            .when_some(repository.filter(|_| !meta), |title, name| {
+                title.shrink(line * 1.4, Tile::new(name, theme).chip(label, line))
+            })
             .when(muted, |line| {
                 line.fixed(dirty_size, parts::muted(label, dirty_size, theme))
             })
@@ -280,6 +286,9 @@ impl RowLayout for Orca {
                 line.fixed(size, fold.element(theme).w(px(size)).text_size(px(size)))
             });
         let details = Line::new(width, GAP)
+            .when_some(repository, |details, name| {
+                details.shrink(line * 1.4, Tile::new(name, theme).chip(label, line))
+            })
             .when_some(cx.host, |line, host| {
                 let chip = div().rounded(px(4.)).bg(rgb(theme.active));
                 line.padded(chip, host, glyph, 1. / 3., 5.)

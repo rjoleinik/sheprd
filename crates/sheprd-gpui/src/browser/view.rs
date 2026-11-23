@@ -153,6 +153,14 @@ impl Browser {
         }
     }
 
+    /// Returns native keyboard ownership to GPUI before its click is handled.
+    #[cfg(any(target_os = "macos", windows))]
+    pub(crate) fn blur_page_keyboard(&self) {
+        if let Some(id) = self.pages.keyboard_page() {
+            self.pages.blur(id);
+        }
+    }
+
     /// Where each page drew in the frame being drawn, which the window's
     /// backgrounds leave unpainted.
     #[cfg(target_os = "macos")]

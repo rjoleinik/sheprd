@@ -772,6 +772,20 @@ impl Render for SheprdWindow {
                 canvas(
                     move |bounds, _, _| menu_bounds.set(bounds),
                     move |_, _, window, _| {
+                        // Native page clicks bypass GPUI. Every click reaching
+                        // it must return the keyboard before a child handles
+                        // it, even when that child occludes the root hitbox.
+                        #[cfg(any(target_os = "macos", windows))]
+                        {
+                            let entity = entity.clone();
+                            window.on_mouse_event(move |_: &MouseDownEvent, phase, _, cx| {
+                                if phase == DispatchPhase::Capture {
+                                    let _ = entity.update(cx, |this, _| {
+                                        this.browser.blur_page_keyboard();
+                                    });
+                                }
+                            });
+                        }
                         let scroll_entity = entity.clone();
                         window.on_mouse_event(move |_: &ScrollEvent, phase, _, cx| {
                             if phase == DispatchPhase::Capture {

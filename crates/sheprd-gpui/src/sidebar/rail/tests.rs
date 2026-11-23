@@ -17,6 +17,7 @@ use std::sync::Arc;
 
 mod mutes;
 mod omo;
+mod repository_marks;
 
 fn rail_window(
     cx: &mut TestAppContext,
@@ -286,6 +287,7 @@ fn center_x(bounds: Bounds<Pixels>) -> Pixels {
 #[gpui::test]
 fn the_selected_workspaces_host_stands_apart(cx: &mut TestAppContext) {
     let (view, cx) = rail_window(cx, 2);
+    cx.simulate_resize(size(px(900.), px(1200.)));
     let look = view.read_with(cx, |view, _| layout::for_config(&view.config, view.fill()));
     for name in Theme::BUILTIN_NAMES {
         let theme = Theme::builtin(name).unwrap_or_else(|| panic!("missing theme {name}"));
@@ -745,6 +747,8 @@ fn rail_follows_shared_collapsed_mode(cx: &mut TestAppContext) {
 #[gpui::test]
 fn rail_shows_a_header_per_host_and_skips_collapsed_hosts(cx: &mut TestAppContext) {
     let (view, cx) = rail_window(cx, 3);
+    cx.simulate_resize(size(px(900.), px(1200.)));
+    cx.update(|window, cx| full_draw(window, cx).clear(cx));
     let rail = cx.debug_bounds("sidebar-rail").unwrap();
     for selector in [
         "rail-host-local",

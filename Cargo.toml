@@ -24,7 +24,7 @@ unwrap_used = "deny"
 # The terminal emulator behind herdr-core terminals, which arrive as raw bytes;
 # Zed's fork, the revision Arbor runs.
 alacritty_terminal   = "0.26.0"
-url = "2"
+url = "2.5.9"
 # The adapter GPUI's macOS backend links; its window focus forwarder.
 accesskit_macos      = "=0.27.2"
 # ACP wire types for sheprd-acp; its own transport, so no async runtime.
@@ -133,8 +133,8 @@ image                = { default-features = false, features = ["gif", "jpeg", "p
 # The sandboxed Luau interpreter behind automation scripts, built from source.
 mlua                 = { features = ["error-send", "luau"], version = "0.12.2" }
 # The `moonframe` feature of `sheprd-gpui` lays out the window in Luau; pinned to
-# a commit on moonframehq/moonframe's main.
-moonframe            = { default-features = false, git = "https://github.com/moonframehq/moonframe", rev = "210ebdbb81ec862aafc90e707c1acc0610034bb3" }
+# the merged hosted redraw and placement fixes (moonframehq/moonframe#215).
+moonframe            = { default-features = false, git = "https://github.com/moonframehq/moonframe", rev = "3f838ceb5a0d99c0228e3456dac1fe064a161416" }
 # Mermaid fences in chat answers become diagrams: parse, lay out, and write
 # SVG in pure Rust; GPUI rasterizes the SVG. No CLI and no PNG writer.
 mermaid-rs-renderer  = { default-features = false, version = "0.3.1" }

@@ -292,6 +292,7 @@ pub(crate) fn router(state: Shared) -> Router {
         .route("/api/v2/read", post(read::post))
         .route("/api/v2/live", get(crate::native::live))
         .route("/api/v2/new", get(crate::native::new_options))
+        .route("/api/v2/projects", post(crate::native::create_project))
         .route("/api/v2/search", get(crate::native::search))
         .route(
             "/api/v2/shortcuts",
@@ -532,6 +533,8 @@ pub(crate) enum ApiError {
     #[error("not found")]
     NotFound,
     #[error(transparent)]
+    Project(#[from] crate::native::project::Error),
+    #[error(transparent)]
     Push(#[from] crate::push::Error),
     #[error("too many connections from this device")]
     TooManyStreams,
@@ -551,6 +554,7 @@ impl IntoResponse for ApiError {
             Self::Agent(error) => error.status(),
             Self::Changes(error) => error.status(),
             Self::GitHub(error) => error.status(),
+            Self::Project(error) => error.status(),
             Self::TooManyStreams => StatusCode::TOO_MANY_REQUESTS,
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::Auth(auth::Error::RateLimited | auth::Error::NearbyBusy) => {

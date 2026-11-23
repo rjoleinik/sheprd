@@ -123,3 +123,5 @@ error-chat-card-json = invalid interactive card JSON
 error-chat-card-title = invalid interactive card: title
 error-chat-card-too-large = the interactive card exceeds its size limit
 error-chat-card-too-many-fields = invalid interactive card: too many editable fields
+
+error-chat-visual-thumbnail = The file preview is unavailable.

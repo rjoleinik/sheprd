@@ -234,6 +234,8 @@ final class AppModel {
     let tokens: ActivityTokens
     /// Settings' "Send test push", per computer.
     let pushTests: PushTests
+    /// Settings' "Start Test Activity".
+    let activityTest: ActivityTest
     let fleet: Fleet
     /// Pairing with the hosts each computer's Sheprd knows.
     let hostLinks: HostLinks
@@ -261,6 +263,7 @@ final class AppModel {
         self.sessions = sessions
         tokens = ActivityTokens(sessions: sessions)
         pushTests = PushTests(sessions: sessions, tokens: tokens)
+        activityTest = ActivityTest(tokens: tokens)
         fleet = Fleet(sessions: sessions)
         hostLinks = HostLinks(sessions: sessions)
         fleetMembership = FleetMembership(sessions: sessions)
@@ -484,6 +487,8 @@ final class AppModel {
     /// Opens a Live Activity's or notification's link in the app.
     func open(_ url: URL) {
         guard let link = ChatLink(url: url) else { return }
+        // The test activity this phone started on itself opens no chat.
+        guard link.computerId != SelfTestPush.sender else { return }
         guard let fingerprint = link.fingerprint,
               let computer = computers.first(where: { $0.fingerprint == fingerprint })
         else {

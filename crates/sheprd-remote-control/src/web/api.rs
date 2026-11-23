@@ -446,10 +446,12 @@ pub(crate) async fn check_new_workspace(
 ) -> Result<(Agent, Option<String>), ApiError> {
     let agent = parse_agent(agent)?;
     let layout = state.hub.layout();
-    let offered = tokio::task::spawn_blocking(move || folders(&layout))
+    let wanted = cwd.to_owned();
+    // `offers` may look at the disk too.
+    let offered = tokio::task::spawn_blocking(move || folders(&layout).offers(&wanted))
         .await
         .map_err(|_| ApiError::Folder)?;
-    if !offered.offers(cwd) {
+    if !offered {
         return Err(ApiError::Folder);
     }
     let branch = branch.trim();

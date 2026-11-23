@@ -267,3 +267,6 @@ chat-form-read-only = Read-only transcript
 chat-form-range = { $min } to { $max }
 chat-form-not-ready = The agent is not ready to receive this form
 chat-form-busy = Finish your current message before sending this form
+
+chat-file-open = Open
+chat-file-on-host = File on the agent’s computer

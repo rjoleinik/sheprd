@@ -161,7 +161,10 @@ fn a_new_tab_starts_in_its_kept_workspaces_folder(cx: &mut TestAppContext) {
             let (purpose, _, spawn, _) = view.core_terminals.wanted.back().unwrap();
             let (purpose, spawn) = (purpose.clone(), spawn.clone());
             assert_eq!(spawn.cwd.as_deref(), Some(Path::new("/src/tools")));
-            let crate::core_terminals::Purpose::Tab { scope, workspace } = purpose else {
+            let crate::core_terminals::Purpose::Tab {
+                scope, workspace, ..
+            } = purpose
+            else {
                 panic!("a tab");
             };
             // Closing the workspace while its shell starts leaves the shell

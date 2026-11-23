@@ -9,6 +9,9 @@ impl Localize for Error {
             #[cfg(target_os = "macos")]
             Self::Agent(error) => error.localize(),
             Self::Busy(name) => fl!("error-machine-busy", name = name.as_str()),
+            Self::Capacity { in_use, limit } => {
+                fl!("error-machine-capacity", in_use = *in_use, limit = *limit)
+            }
             Self::Cpus { min, max } => fl!("error-machine-cpus", min = *min, max = *max),
             Self::Delete { path, source } => fl!(
                 "error-machine-delete",
@@ -28,6 +31,14 @@ impl Localize for Error {
             Self::InvalidDisplay => fl!("error-machine-invalid-display"),
             Self::InvalidName => fl!("error-machine-invalid-name"),
             Self::Memory { min, max } => fl!("error-machine-memory", min = *min, max = *max),
+            Self::NameMismatch {
+                requested,
+                installed,
+            } => fl!(
+                "error-machine-name-mismatch",
+                requested = requested.as_str(),
+                installed = installed.as_str()
+            ),
             Self::NoStateDir => fl!("error-machine-no-state-dir"),
             Self::NotInstalled(path) => fl!(
                 "error-machine-not-installed",

@@ -229,7 +229,7 @@ fn start_new(
             match core {
                 Some(tab) => view.start_core_chat(agent, tab, carry, cx),
                 None if beside.is_none() && view.kept_in_front().is_some() => {
-                    view.start_kept_core_chat(agent, carry, cx)
+                    view.start_kept_core_chat(agent, carry, None, cx)
                 }
                 None => view.start_chat(agent, beside.as_deref(), carry),
             }

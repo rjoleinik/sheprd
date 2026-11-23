@@ -59,3 +59,38 @@ fn fleet_removals_name_a_member_or_host() {
     );
     assert!(parse(&["fleet", "found"]).is_err());
 }
+
+#[test]
+fn fleet_invite_names_a_machine_or_all() {
+    assert_eq!(
+        command(&["fleet", "invite", "m4max"]),
+        ControlCommand::Fleet(FleetCommand::Invite {
+            machine: Some("m4max".into())
+        })
+    );
+    assert_eq!(
+        command(&["fleet", "invite", "--all"]),
+        ControlCommand::Fleet(FleetCommand::Invite { machine: None })
+    );
+    // Neither, or both, says nothing clear.
+    for args in [
+        &["fleet", "invite"][..],
+        &["fleet", "invite", "--all", "m4max"],
+    ] {
+        assert!(matches!(parse(args), Err(CliError::MissingArgument { .. })));
+    }
+}
+
+#[test]
+fn fleet_join_may_name_the_member_reached() {
+    assert_eq!(
+        command(&["fleet", "join"]),
+        ControlCommand::Fleet(FleetCommand::Join { machine: None })
+    );
+    assert_eq!(
+        command(&["fleet", "join", "studio"]),
+        ControlCommand::Fleet(FleetCommand::Join {
+            machine: Some("studio".into())
+        })
+    );
+}

@@ -25,6 +25,20 @@ fn fleet_requests_have_a_stable_wire_form() {
                 machine: "build-01".into(),
             },
         ),
+        (r#"{"op":"invite"}"#, FleetOp::Invite { machine: None }),
+        (
+            r#"{"op":"invite","machine":"m4max"}"#,
+            FleetOp::Invite {
+                machine: Some("m4max".into()),
+            },
+        ),
+        (r#"{"op":"join"}"#, FleetOp::Join { machine: None }),
+        (
+            r#"{"op":"join","machine":"studio"}"#,
+            FleetOp::Join {
+                machine: Some("studio".into()),
+            },
+        ),
         (
             r#"{"op":"remove_host","host":"build-01"}"#,
             FleetOp::RemoveHost {

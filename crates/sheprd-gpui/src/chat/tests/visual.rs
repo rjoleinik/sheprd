@@ -55,6 +55,7 @@ pub(super) fn message(text: &str) -> (Prepared, Vec<String>) {
             },
             Part::Bubble(effect, _) => format!("bubble:{}", effect.name()),
             Part::Screen(effect) => format!("screen:{}", effect.name()),
+            Part::File { destination, .. } => format!("file:{destination}"),
             Part::Widget(_) => "widget".to_owned(),
             Part::Diagram(..) => "diagram".to_owned(),
             Part::Html { .. } => "page".to_owned(),
