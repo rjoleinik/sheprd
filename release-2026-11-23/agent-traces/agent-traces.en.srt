@@ -1,0 +1,11 @@
+1
+00:00:01,000 --> 00:00:06,000
+An agent looked into the forecast command. Let’s find that conversation.
+
+2
+00:00:06,000 --> 00:00:10,760
+Open Traces and narrow the history to the forecast project.
+
+3
+00:00:10,915 --> 00:00:16,795
+Select a session to read the request and see exactly which tools the agent used.

@@ -1,0 +1,11 @@
+1
+00:00:01,000 --> 00:00:05,760
+Un agent a examiné la commande météo. Retrouvons cette conversation.
+
+2
+00:00:06,000 --> 00:00:10,440
+Ouvrez Traces et cherchez le projet météo dans l’historique.
+
+3
+00:00:10,915 --> 00:00:16,235
+Ouvrez une session pour relire la demande et voir quels outils l’agent a utilisés.
