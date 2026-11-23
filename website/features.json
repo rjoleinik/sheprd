@@ -131,32 +131,44 @@
     {
       "id": "browser-tabs",
       "category": "Browser",
-      "kicker": "Browser tabs",
-      "headline": "The web,<br>beside your terminal.",
-      "dek": "Preview what your agents build and point at what should change, without leaving Sheprd.",
-      "description": "Open web pages in Sheprd tabs and annotate them for your agents.",
+      "kicker": "Browser annotations",
+      "headline": "Show your agent<br>which button you mean.",
+      "dek": "Pin a note to a button in the live preview. The agent gets your request and the element it belongs to in one message.",
+      "description": "Annotate a local browser preview, send the selected element to its agent, and see the page reload after the edit.",
       "chapters": [
         [
+          0,
+          "Open the preview"
+        ],
+        [
           1,
-          "Open a page"
+          "Pick an element"
+        ],
+        [
+          2,
+          "Add a note"
         ],
         [
           3,
-          "Annotate it"
+          "Send to the agent"
+        ],
+        [
+          4,
+          "See the edit"
         ]
       ],
       "how": [
         [
-          "Open a browser tab",
-          "Press Command Shift B and type an address."
+          "Ask for a preview",
+          "Have the agent open the local page with sheprd browser open. The preview opens beside the chat."
         ],
         [
-          "Preview as you work",
-          "Keep the page next to the agent building it, and reload as it changes."
+          "Pick the button",
+          "Choose Annotate and click a page element. Describe the change and choose Add note to pin it."
         ],
         [
-          "Point at the change",
-          "Annotate, then click an element or select text, and describe what should change."
+          "Send your feedback",
+          "Choose Send to agent. Sheprd includes the element and the note so the agent can find the exact button."
         ]
       ],
       "docs": [
@@ -164,7 +176,7 @@
         "Browser tabs"
       ],
       "keywords": "web page preview localhost annotate notes webview url",
-      "window_note": "the Moonframe window doesn't draw web pages yet"
+      "poster": 15.0
     },
     {
       "id": "themes",

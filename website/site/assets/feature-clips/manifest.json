@@ -51,6 +51,23 @@
       24.13
     ]
   },
+  "browser-tabs": {
+    "windows": [
+      "moonframe"
+    ],
+    "langs": [
+      "en",
+      "fr"
+    ],
+    "length": 30.3,
+    "starts": [
+      1.0,
+      5.6,
+      10.37,
+      17.45,
+      23.98
+    ]
+  },
   "themes": {
     "windows": [
       "moonframe"

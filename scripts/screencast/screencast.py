@@ -420,7 +420,8 @@ def render(spec, provider, lang, starts, work, window, out, captions=False, crop
     # before that is cut.
     head = max(0.0, starts[0] - LEAD_IN)
     starts = [start - head for start in starts]
-    clicks = [(at - head + RECORDER_LAG, x, y) for at, x, y in clicks if at - head > 0]
+    click_offset = spec.get("click_offset", RECORDER_LAG)
+    clicks = [(at - head + click_offset, x, y) for at, x, y in clicks if at - head > 0]
     d = work / window / "render" / slug(provider) / lang
     d.mkdir(parents=True, exist_ok=True)
     title_card(spec["title"][lang], lang, d / "title.png")
@@ -431,16 +432,19 @@ def render(spec, provider, lang, starts, work, window, out, captions=False, crop
         # screencapture writes a frame only when the screen changes: make the
         # rate constant before cutting the warm-up, and hold the last frame.
         f"[0:v]fps={FPS},trim=start={head:.3f},setpts=PTS-STARTPTS,"
-        f"tpad=stop_mode=clone:stop_duration=5,crop=iw:ih*{crop}:0:0,scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=decrease,"
+        f"tpad=stop_mode=clone:stop=-1,crop=iw:ih*{crop}:0:0,scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=decrease,"
         f"pad={WIDTH}:{HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=0x101014[v0]",
         f"[v0][1:v]overlay=(W-w)/2:H-h-40:shortest=1:enable='lt(t,{starts[1]:.3f})'[v1]",
     ]
     srt, audio_labels = [], []
+    end_time = duration(screen) - head
     last = "v1"
     burned = 0
     for i, seg in enumerate(spec["segments"]):
         length = duration(voice_file(work, provider, lang, i))
         start, end = starts[i], starts[i] + length + GAP
+        # A static guest may emit its last frame before the voice finishes.
+        end_time = max(end_time, end)
         srt.append(f"{i + 1}\n{srt_time(start)} --> {srt_time(end)}\n{seg['say'][lang]}\n")
         overlays = []
         if captions:
@@ -499,7 +503,7 @@ def render(spec, provider, lang, starts, work, window, out, captions=False, crop
         "-filter_complex", ";".join(filters), "-map", f"[{last}]", "-map", "[aout]",
         "-c:v", "libx264", "-preset", "slow", "-crf", "20", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart",
-        "-t", f"{duration(screen) - head:.3f}", str(mp4))
+        "-t", f"{end_time:.3f}", str(mp4))
     (mp4.parent / f"{spec['id']}.{lang}.srt").write_text("\n".join(srt))
     return mp4
 

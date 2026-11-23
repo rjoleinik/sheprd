@@ -1,177 +1,41 @@
 {
   "id": "browser-tabs",
-  "feature": "Browser tabs",
-  "windows": [
-    "classic"
-  ],
+  "feature": "Browser annotations",
+  "windows": ["moonframe"],
+  "click_offset": -0.23,
   "setup": [
-    [
-      "exec",
-      "cd ~/code/forecast && git reset -q --hard && git clean -qfd; sed -i '' 's/^theme = .*/theme = \"Default\"/' ~/.config/herdr/config-gpui.local.toml; sleep 1"
-    ],
-    [
-      "key",
-      "escape"
-    ],
-    [
-      "click",
-      1600,
-      1000
-    ],
-    [
-      "key",
-      "cmd+shift+n"
-    ],
-    [
-      "wait",
-      1.5
-    ],
-    [
-      "type",
-      "cd ~/code/forecast && clear"
-    ],
-    [
-      "key",
-      "return"
-    ],
-    [
-      "wait",
-      1.2
-    ]
+    ["exec", "sed -i '' 's/background: #2f9e5b/background: #8a8f98/' ~/code/forecast/index.html && cd ~/code/forecast && ~/Apps/Sheprd.app/Contents/MacOS/sheprd chat new gemini"],
+    ["wait", 4]
   ],
   "segments": [
-    {
-      "actions": []
-    },
-    {
-      "actions": [
-        [
-          "wait",
-          0.4
-        ],
-        [
-          "key",
-          "cmd+shift+b"
-        ],
-        [
-          "wait",
-          1.2
-        ],
-        [
-          "click",
-          1530,
-          162
-        ],
-        [
-          "slowtype",
-          "sheprd.org",
-          0.03
-        ],
-        [
-          "key",
-          "return"
-        ]
-      ],
-      "shortcut": "ctrl-alt-shift-b"
-    },
-    {
-      "actions": [
-        [
-          "wait",
-          2.5
-        ],
-        [
-          "key",
-          "down"
-        ],
-        [
-          "key",
-          "down"
-        ],
-        [
-          "key",
-          "down"
-        ]
-      ]
-    },
-    {
-      "actions": [
-        [
-          "wait",
-          0.4
-        ],
-        [
-          "click",
-          2426,
-          162
-        ]
-      ]
-    },
-    {
-      "actions": []
-    }
+    {"actions": [
+      ["type", "Show me the page preview"],
+      ["key", "return"],
+      ["wait", 3]
+    ]},
+    {"actions": [
+      ["click", 2400, 102],
+      ["wait", 0.9],
+      ["click", 1766, 927]
+    ]},
+    {"actions": [
+      ["type", "Make this button green"],
+      ["wait", 0.8],
+      ["click", 2040, 550]
+    ]},
+    {"actions": [
+      ["wait", 0.5],
+      ["click", 2064, 1356],
+      ["wait", 2]
+    ]},
+    {"actions": [
+      ["click", 2400, 102],
+      ["wait", 3.5],
+      ["click", 1758, 33]
+    ]}
   ],
   "teardown": [
-    [
-      "key",
-      "escape"
-    ],
-    [
-      "key",
-      "cmd+shift+w"
-    ],
-    [
-      "wait",
-      0.8
-    ],
-    [
-      "key",
-      "escape"
-    ],
-    [
-      "key",
-      "escape"
-    ],
-    [
-      "click",
-      1600,
-      1000
-    ],
-    [
-      "key",
-      "cmd+shift+p"
-    ],
-    [
-      "wait",
-      0.8
-    ],
-    [
-      "type",
-      "close workspace"
-    ],
-    [
-      "wait",
-      0.8
-    ],
-    [
-      "key",
-      "return"
-    ],
-    [
-      "wait",
-      1.2
-    ],
-    [
-      "type",
-      "close"
-    ],
-    [
-      "key",
-      "return"
-    ],
-    [
-      "wait",
-      1.5
-    ]
+    ["click", 760, 34],
+    ["exec", "sed -i '' 's/background: #2f9e5b/background: #8a8f98/' ~/code/forecast/index.html"]
   ]
 }

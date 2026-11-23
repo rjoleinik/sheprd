@@ -60,6 +60,12 @@ if [ ! -d "$repo/.git" ]; then
   git -C "$repo" add -A
   git -C "$repo" commit -qm "Five-day forecast from sample data"
 fi
+# Older recording images have the forecast command but predate the browser demo.
+if [ ! -e "$repo/index.html" ]; then
+  cp "$here/index.html" "$repo/"
+  git -C "$repo" add -- index.html
+  git -C "$repo" commit -qm "Add the forecast preview" -- index.html
+fi
 
 # Sheprd's settings for recordings: the readable Default theme, Herdr 2
 # terminals, chats that find the agents above, and no plan usage, which
