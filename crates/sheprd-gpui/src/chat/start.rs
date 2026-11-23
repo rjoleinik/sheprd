@@ -440,12 +440,14 @@ impl SheprdWindow {
     }
 
     /// Starts a chat from a tab strip's launcher, so its tab opens in that
-    /// strip's group as one from the strip's "+" does.
-    /// A herdr-core tab the strip shows splits with the chat instead.
+    /// strip's group as one from the strip's "+" does. Beside a herdr-core
+    /// tab the chat gets a tab of its own too, in that tab's workspace and
+    /// the folder of its pane in use, as it does beside a Herdr 1 tab.
     pub(crate) fn start_chat_in(&mut self, agent: Agent, group: GroupId, cx: &mut Context<Self>) {
         if let Some(tab) = self.core_chat_group_tab(Some(group), cx) {
-            if let Err(error) = self.start_core_chat(agent, tab, None, cx) {
-                self.flash_chat_error(&error, cx);
+            match self.start_core_chat_tab_beside(agent, tab, cx) {
+                Ok(()) => self.expect_new_tab_in(group),
+                Err(error) => self.flash_chat_error(&error, cx),
             }
             cx.notify();
             return;

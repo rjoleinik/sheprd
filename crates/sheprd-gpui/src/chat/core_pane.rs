@@ -277,6 +277,26 @@ impl SheprdWindow {
         self.start_core_chat_tab(agent, scope, workspace, cwd, carry, cx)
     }
 
+    /// Opens a tab beside herdr-core tab `tab` running a chat with `agent`:
+    /// in `tab`'s workspace, starting in the folder of its pane in use.
+    pub(crate) fn start_core_chat_tab_beside(
+        &mut self,
+        agent: Agent,
+        tab: TabId,
+        cx: &gpui::App,
+    ) -> Result<(), super::StartError> {
+        let (scope, workspace) = cx
+            .try_global::<crate::browser::Store>()
+            .and_then(|store| store.get(tab))
+            .map(|shown| (shown.scope.clone(), shown.workspace_id.clone()))
+            .ok_or(super::StartError::NoWorkspace)?;
+        let cwd = self
+            .core_terminals
+            .chat_split_at(tab)
+            .and_then(|at| self.core_folder(tab, &at));
+        self.start_core_chat_tab(agent, scope, workspace, cwd, None, cx)
+    }
+
     /// Opens a tab of kept workspace `workspace` in `scope` running a chat
     /// with `agent` in `cwd`.
     pub(crate) fn start_core_chat_tab(
