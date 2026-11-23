@@ -1,0 +1,11 @@
+1
+00:00:01,000 --> 00:00:04,960
+Ask your agent for a forecast report you can share.
+
+2
+00:00:05,205 --> 00:00:10,925
+The finished PDF appears in the conversation, with a preview of its first page.
+
+3
+00:00:10,926 --> 00:00:14,326
+Open the report right from the file card.

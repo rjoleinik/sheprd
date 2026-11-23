@@ -1,0 +1,11 @@
+1
+00:00:01,000 --> 00:00:05,200
+Demandez à votre agent un bulletin météo que vous pourrez partager.
+
+2
+00:00:05,205 --> 00:00:10,525
+Le PDF apparaît dans la conversation avec un aperçu de sa première page.
+
+3
+00:00:10,926 --> 00:00:14,406
+Ouvrez le bulletin directement depuis sa fiche.
