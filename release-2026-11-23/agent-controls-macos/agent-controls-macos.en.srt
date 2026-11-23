@@ -1,0 +1,27 @@
+1
+00:00:01,000 --> 00:00:09,680
+This Mac is running inside Sheprd. On the left are the commands my agent sends. On the right is the Mac it controls.
+
+2
+00:00:09,684 --> 00:00:17,004
+The agent types the test command into Terminal and presses Return. All four Forecast tests pass.
+
+3
+00:00:17,006 --> 00:00:22,806
+Next it opens a blank report in TextEdit, the same Mac app I’d use myself.
+
+4
+00:00:22,811 --> 00:00:29,091
+Watch the Bold button. The agent clicks it and types the result straight into the document.
+
+5
+00:00:29,096 --> 00:00:36,896
+Under the heading, it writes what the tests covered, including five days of forecasts and a check for unknown cities.
+
+6
+00:00:36,897 --> 00:00:44,457
+It sends Command S to save, closes the window, and opens the report again. The text is still there.
+
+7
+00:00:44,460 --> 00:00:53,380
+Finally, the agent takes a screenshot of the virtual Mac. I can see exactly what it left on screen, and my own desktop stays private.
