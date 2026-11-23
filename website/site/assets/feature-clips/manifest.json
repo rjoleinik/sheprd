@@ -1,8 +1,7 @@
 {
   "agent-chat": {
     "windows": [
-      "moonframe",
-      "classic"
+      "moonframe"
     ],
     "langs": [
       "en",
@@ -20,8 +19,7 @@
   },
   "review-changes": {
     "windows": [
-      "moonframe",
-      "classic"
+      "moonframe"
     ],
     "langs": [
       "en",
@@ -38,8 +36,7 @@
   },
   "command-palette": {
     "windows": [
-      "moonframe",
-      "classic"
+      "moonframe"
     ],
     "langs": [
       "en",
@@ -54,27 +51,9 @@
       24.13
     ]
   },
-  "browser-tabs": {
-    "windows": [
-      "classic"
-    ],
-    "langs": [
-      "en",
-      "fr"
-    ],
-    "length": 26.9,
-    "starts": [
-      1.0,
-      5.02,
-      10.64,
-      16.02,
-      21.73
-    ]
-  },
   "themes": {
     "windows": [
-      "moonframe",
-      "classic"
+      "moonframe"
     ],
     "langs": [
       "en",
@@ -91,32 +70,31 @@
   },
   "tour": {
     "windows": [
-      "moonframe",
-      "classic"
+      "moonframe"
     ],
     "langs": [
       "en",
       "fr"
     ],
-    "length": 125.3,
+    "length": 133.7,
     "starts": [
       1.0,
       7.28,
       13.89,
       17.77,
-      25.83,
-      34.04,
-      40.64,
-      49.17,
-      55.29,
-      66.51,
-      72.23,
-      81.24,
-      88.0,
-      96.68,
-      101.92,
-      111.12,
-      121.52
+      27.3,
+      35.51,
+      42.12,
+      50.65,
+      56.78,
+      71.74,
+      77.47,
+      86.48,
+      93.24,
+      104.15,
+      109.4,
+      120.57,
+      133.71
     ]
   }
 }

@@ -66,8 +66,8 @@ HOVER = "/Users/admin/.local/bin/screencast-hover"  # where the machine keeps th
 # rest is desktop). A video is recorded once per window asked for, so people
 # can pick the one they use. Rune is to come.
 WINDOWS = {
-    "classic": (["--classic"], 1.0),
     "moonframe": ([], 1.0),
+    "classic": (["--classic"], 1.0),
 }
 
 
@@ -115,9 +115,10 @@ def speak(spec, providers, langs, work, cache):
 
 # The window being recorded, for steps that differ between windows.
 WINDOW = None
-# screencapture writes a frame a little after the screen shows it, so a ring
-# drawn at the logged time would come before the click it marks.
-RECORDER_LAG = 0.05
+# Where a click's ring starts against the click's logged time: the click
+# command returns some time after the press lands, and the pointer is always
+# on its target 0.2 s before pressing, so a little early never precedes it.
+RECORDER_LAG = -0.15
 # Clicks made while recording, as (monotonic time, x, y) in screenshot pixels,
 # so the render can mark where each lands.
 CLICKS = []
@@ -141,7 +142,7 @@ def act(name, action):
             machine(name, "type", ch)
             time.sleep(args[1])
     elif kind == "click":
-        # ["click", x, y] or ["click", x, y, "right"]; a {window: [x, y]} map
+        # ["click", x, y] plus "right" and/or "quiet"; a {window: [x, y]} map
         # stands for x, y where the windows differ.
         point, extra = (args[0][WINDOW], args[1:]) if isinstance(args[0], dict) else (args[:2], args[2:])
         x, y = point
@@ -150,9 +151,13 @@ def act(name, action):
         # redrawn in, so the press would land on the old hover.
         machine(name, "exec", "--", HOVER, str(x / 2), str(y / 2))
         time.sleep(0.2)
+        sent = time.monotonic()
         machine(name, "click", str(x), str(y), *(["--right"] if "right" in extra else []))
-        # When the press landed: the command returns once it is posted.
-        CLICKS.append((time.monotonic(), x, y))
+        # The press lands while the command runs: take its middle. A "quiet"
+        # click only gives a pane the keyboard before a shortcut, which shows
+        # nothing to point at, so it gets no ring.
+        if "quiet" not in extra:
+            CLICKS.append(((sent + time.monotonic()) / 2, x, y))
     elif kind == "hover":
         # Point at something without clicking: a theme previews, a tooltip
         # shows, or the viewer's eye follows the pointer there.
@@ -428,7 +433,7 @@ def render(spec, provider, lang, starts, work, window, out, captions=False, crop
         f"[0:v]fps={FPS},trim=start={head:.3f},setpts=PTS-STARTPTS,"
         f"tpad=stop_mode=clone:stop_duration=5,crop=iw:ih*{crop}:0:0,scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=decrease,"
         f"pad={WIDTH}:{HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=0x101014[v0]",
-        f"[v0][1:v]overlay=(W-w)/2:H-h-90:shortest=1:enable='lt(t,{starts[1]:.3f})'[v1]",
+        f"[v0][1:v]overlay=(W-w)/2:H-h-40:shortest=1:enable='lt(t,{starts[1]:.3f})'[v1]",
     ]
     srt, audio_labels = [], []
     last = "v1"
@@ -518,7 +523,8 @@ def main():
     p.add_argument("--machine", default="screencast")
     p.add_argument("--out", type=Path, default=Path("target/screencasts"))
     p.add_argument("--langs", default=",".join(LANGS))
-    p.add_argument("--window", default=",".join(WINDOWS),
+    # Moonframe is the window Sheprd opens; classic stays available on demand.
+    p.add_argument("--window", default="moonframe",
                    help=f"comma-separated windows to record: {', '.join(WINDOWS)}")
     p.add_argument("--tts", default="elevenlabs:river",
                    help=f"comma-separated voices to render: {', '.join(tts.PROVIDERS)}")

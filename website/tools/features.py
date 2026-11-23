@@ -30,7 +30,7 @@ TEMPLATE = Path(__file__).with_name("feature-page.html")
 RENDERS = ROOT / "target/screencasts"
 VOICE = "elevenlabs-river"
 # The window a page plays first: the one Sheprd opens by default.
-WINDOW_ORDER = ["moonframe", "classic"]
+WINDOW_ORDER = ["moonframe"]
 WINDOW_LABELS = {"moonframe": "Moonframe", "classic": "Classic"}
 LANG_LABELS = {"en": "English", "fr": "Français"}
 
@@ -182,7 +182,7 @@ def feature_page(feature, index, features, clip):
             ("window", "Window", clip["windows"], window, WINDOW_LABELS),
             ("lang", "Narration language", clip["langs"], lang, LANG_LABELS))
         if len(values) > 1)
-    only = ("" if len(clip["windows"]) > 1 else
+    only = ("" if len(clip["windows"]) > 1 or clip["windows"] == ["moonframe"] else
             f'<span class="demo-only">{WINDOW_LABELS[window]} window only'
             + (f" · {esc(feature['window_note'])}" if feature.get("window_note") else "")
             + "</span>")

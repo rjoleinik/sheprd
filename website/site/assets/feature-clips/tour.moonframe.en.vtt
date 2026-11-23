@@ -9,61 +9,61 @@ This is Sheprd: your terminals and your coding agents, together in one window.
 On the left are your spaces, one per project, and below them every agent at work.
 
 3
-00:00:13.888 --> 00:00:17.208
+00:00:13.889 --> 00:00:17.209
 Click new to start a fresh space.
 
 4
-00:00:17.772 --> 00:00:24.212
+00:00:17.770 --> 00:00:24.210
 For a repository, a new worktree gives an agent its own branch and folder to work in.
 
 5
-00:00:25.834 --> 00:00:34.034
+00:00:27.305 --> 00:00:35.505
 The agent button, next to the new tab button, opens a chat with Claude, Codex, Gemini or another agent.
 
 6
-00:00:34.037 --> 00:00:40.637
+00:00:35.513 --> 00:00:42.113
 Ask for a change, and follow every file it reads, every edit and every test.
 
 7
-00:00:40.644 --> 00:00:49.164
+00:00:42.120 --> 00:00:50.640
 A chat is a native view of an agent running in a terminal. This button shows that terminal, and Chat brings the chat back.
 
 8
-00:00:49.169 --> 00:00:55.209
+00:00:50.650 --> 00:00:56.690
 Each space holds tabs, and each tab can split into panes, side by side.
 
 9
-00:00:55.293 --> 00:01:03.013
+00:00:56.778 --> 00:01:04.498
 The activity bar opens more: an overview of your agents, pull requests, issues, usage and more.
 
 10
-00:01:06.510 --> 00:01:12.230
+00:01:11.741 --> 00:01:17.461
 The status bar keeps an eye on the machine, and shows your plan usage when you turn it on.
 
 11
-00:01:12.235 --> 00:01:20.595
+00:01:17.469 --> 00:01:25.829
 Devices lists every machine you work on. Add SSH hosts or cloud machines, and their agents show up here too.
 
 12
-00:01:21.240 --> 00:01:27.840
+00:01:26.479 --> 00:01:33.079
 Agents can open web pages beside you too. Ask for a preview, and the page opens in a tab.
 
 13
-00:01:28.004 --> 00:01:34.684
+00:01:33.244 --> 00:01:39.924
 Annotate it: click anything on the page, write what should change, and send it to the agent.
 
 14
-00:01:36.677 --> 00:01:41.597
+00:01:44.150 --> 00:01:49.070
 The agent gets your note, makes the change, and the page reloads.
 
 15
-00:01:41.922 --> 00:01:47.322
+00:01:49.399 --> 00:01:54.799
 Settings opens on themes: hover one to try it on the whole window.
 
 16
-00:01:51.121 --> 00:01:56.441
+00:02:00.570 --> 00:02:05.890
 Pick the sidebar layout, the status indicators, and how tabs look.
 
 17
-00:02:01.519 --> 00:02:06.279
+00:02:13.710 --> 00:02:18.470
 That's the tour. Every feature has its own short guide below.
