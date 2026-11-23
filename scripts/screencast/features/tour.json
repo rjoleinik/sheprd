@@ -374,6 +374,96 @@
         ],
         [
           "click",
+          640,
+          1252
+        ],
+        [
+          "type",
+          "Show me the page preview"
+        ],
+        [
+          "key",
+          "return"
+        ],
+        [
+          "wait",
+          3
+        ]
+      ]
+    },
+    {
+      "actions": [
+        [
+          "wait",
+          0.2
+        ],
+        [
+          "click",
+          2398,
+          162
+        ],
+        [
+          "wait",
+          1.2
+        ],
+        [
+          "click",
+          1766,
+          986
+        ],
+        [
+          "wait",
+          1.2
+        ],
+        [
+          "click",
+          2240,
+          553
+        ],
+        [
+          "type",
+          "Make this button green"
+        ],
+        [
+          "wait",
+          0.4
+        ],
+        [
+          "click",
+          2040,
+          609
+        ],
+        [
+          "wait",
+          0.8
+        ],
+        [
+          "click",
+          2063,
+          1357
+        ]
+      ]
+    },
+    {
+      "actions": [
+        [
+          "wait",
+          3.5
+        ]
+      ]
+    },
+    {
+      "actions": [
+        [
+          "key",
+          "escape"
+        ],
+        [
+          "wait",
+          0.3
+        ],
+        [
+          "click",
           41,
           1390
         ],
@@ -467,45 +557,6 @@
           "cmd+w"
         ]
       ]
-    },
-    {
-      "actions": [
-        [
-          "wait",
-          0.3
-        ],
-        [
-          "click",
-          1000,
-          700
-        ],
-        [
-          "key",
-          "cmd+shift+b"
-        ],
-        [
-          "wait",
-          1.2
-        ],
-        [
-          "click",
-          1530,
-          162
-        ],
-        [
-          "type",
-          "sheprd.org"
-        ],
-        [
-          "key",
-          "return"
-        ],
-        [
-          "wait",
-          2
-        ]
-      ],
-      "shortcut": "ctrl-alt-shift-b"
     },
     {
       "actions": []

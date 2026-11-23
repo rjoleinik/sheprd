@@ -46,17 +46,25 @@ en: Devices lists every machine you work on. Add SSH hosts or cloud machines, an
 fr: « Devices » liste chaque machine sur laquelle vous travaillez. Ajoutez des hôtes SSH ou des machines cloud, et leurs agents apparaissent ici aussi.
 
 ## 12
+en: Agents can open web pages beside you too. Ask for a preview, and the page opens in a tab.
+fr: Les agents peuvent aussi ouvrir des pages web à côté de vous. Demandez un aperçu, et la page s'ouvre dans un onglet.
+
+## 13
+en: Annotate it: click anything on the page, write what should change, and send it to the agent.
+fr: Annotez-la : cliquez sur n'importe quel élément, écrivez ce qui doit changer, et envoyez-le à l'agent.
+
+## 14
+en: The agent gets your note, makes the change, and the page reloads.
+fr: L'agent reçoit votre note, fait la modification, et la page se recharge.
+
+## 15
 en: Settings opens on themes: hover one to try it on the whole window.
 fr: Les réglages s'ouvrent sur les thèmes : survolez-en un pour l'essayer sur toute la fenêtre.
 
-## 13
+## 16
 en: Pick the sidebar layout, the status indicators, and how tabs look.
 fr: Choisissez la disposition de la barre latérale, les indicateurs d'état, et l'apparence des onglets.
 
-## 14
-en: And web pages open in tabs too, right beside your terminals.
-fr: Et les pages web s'ouvrent aussi en onglets, juste à côté de vos terminaux.
-
-## 15
+## 17
 en: That's the tour. Every feature has its own short guide below.
 fr: Voilà pour la visite. Chaque fonctionnalité a son propre petit guide ci-dessous.

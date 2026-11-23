@@ -101,7 +101,7 @@ def main():
     p.add_argument("--app", type=Path, help="a Sheprd.app to install in the machine")
     p.add_argument("--sign-ins", action="store_true", help="copy Claude Code and Codex sign-ins")
     a = p.parse_args()
-    for f in ("setup.sh", "acp_stub.py", "forecast.py", "days.json", "test_forecast.py"):
+    for f in ("setup.sh", "acp_stub.py", "forecast.py", "days.json", "test_forecast.py", "index.html"):
         push(a.machine, HERE / f, f"{DEST}/{f}")
     print(machine(a.machine, "sh", f"{DEST}/setup.sh", timeout=600).strip())
     install_hover(a.machine)

@@ -41,7 +41,7 @@ chmod +x "$HOME/.local/bin/gemini"
 repo="$HOME/code/forecast"
 if [ ! -d "$repo/.git" ]; then
   mkdir -p "$repo"
-  cp "$here/forecast.py" "$here/days.json" "$here/test_forecast.py" "$repo/"
+  cp "$here/forecast.py" "$here/days.json" "$here/test_forecast.py" "$here/index.html" "$repo/"
   printf '__pycache__/\n' > "$repo/.gitignore"
   git -C "$repo" init -q -b main
   git -C "$repo" config user.name "Ada Lovelace"

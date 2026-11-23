@@ -113,6 +113,9 @@ def speak(spec, providers, langs, work, cache):
 
 # The window being recorded, for steps that differ between windows.
 WINDOW = None
+# Clicks made while recording, as (monotonic time, x, y) in screenshot pixels,
+# so the render can draw a glow where each lands.
+CLICKS = []
 
 
 def act(name, action):
@@ -142,6 +145,7 @@ def act(name, action):
         # redrawn in, so the press would land on the old hover.
         machine(name, "exec", "--", HOVER, str(x / 2), str(y / 2))
         time.sleep(0.2)
+        CLICKS.append((time.monotonic(), x, y))
         machine(name, "click", str(x), str(y), *(["--right"] if "right" in extra else []))
     elif kind == "hover":
         # Point at something without clicking: a theme previews, a tooltip
@@ -216,6 +220,7 @@ def record(spec, name, slots, work):
     if not recorder.isdigit():
         sys.exit(f"screencapture did not start in the machine: {recorder}")
     t0 = time.monotonic()
+    CLICKS.clear()
 
     def stop():
         # SIGINT makes screencapture finish the movie; only this run's recorder.
@@ -252,7 +257,9 @@ def record(spec, name, slots, work):
     # The movie ends when it was stopped; place segment starts on its clock.
     offset = duration(raw) - stopped
     starts = [s + offset for s in starts]
-    (work / "timing.json").write_text(json.dumps({"starts": starts, "slots": slots}))
+    clicks = [[at - t0 + offset, x, y] for at, x, y in CLICKS if at - t0 < stopped]
+    (work / "timing.json").write_text(json.dumps({"starts": starts, "slots": slots,
+                                                  "clicks": clicks}))
     return starts
 
 
@@ -317,7 +324,14 @@ def srt_time(t):
     return f"{ms // 3600000:02}:{ms // 60000 % 60:02}:{ms // 1000 % 60:02},{ms % 1000:03}"
 
 
-def render(spec, provider, lang, starts, work, window, out, captions=False, crop=None):
+def glow(path, size, alpha):
+    """A soft round glow to mark a click: bright in the middle, fading out."""
+    run("magick", "-size", f"{size}x{size}", "radial-gradient:#ffd27aff-#ffd27a00",
+        "-channel", "A", "-evaluate", "multiply", str(alpha), "+channel", str(path))
+
+
+def render(spec, provider, lang, starts, work, window, out, captions=False, crop=None,
+           clicks=()):
     """Render one language and voice of the recording in work/WINDOW."""
     screen = work / window / "screen.mov"
     crop = crop or WINDOWS[window][1]
@@ -325,6 +339,7 @@ def render(spec, provider, lang, starts, work, window, out, captions=False, crop
     # before that is cut.
     head = max(0.0, starts[0] - LEAD_IN)
     starts = [start - head for start in starts]
+    clicks = [(at - head, x, y) for at, x, y in clicks if at - head > 0]
     d = work / window / "render" / slug(provider) / lang
     d.mkdir(parents=True, exist_ok=True)
     title_card(spec["title"][lang], lang, d / "title.png")
@@ -366,6 +381,24 @@ def render(spec, provider, lang, starts, work, window, out, captions=False, crop
                 f"enable='between(t,{start:.3f},{end:.3f})'[v{n}]"
             )
             last = f"v{n}"
+    # Each click: a bright glow under the pointer, then a wider fainter one,
+    # as screencast apps mark them. Guest pixels map to the video by the scale
+    # the screen was fitted with (crop keeps the full width).
+    if clicks:
+        glow(d / "glow-near.png", 70, 0.9)
+        glow(d / "glow-far.png", 150, 0.45)
+        scale = WIDTH / 2560
+        for image in ("glow-near.png", "glow-far.png"):
+            inputs += ["-loop", "1", "-i", str(d / image)]
+        near, far = 2 + burned, 3 + burned
+        burned += 2
+        for k, (at, x, y) in enumerate(clicks):
+            for n, size, begin, length in ((near, 70, 0.0, 0.25), (far, 150, 0.12, 0.35)):
+                filters.append(
+                    f"[{last}][{n}:v]overlay={x * scale - size / 2:.0f}:{y * scale - size / 2:.0f}:"
+                    f"shortest=1:enable='between(t,{at + begin:.3f},{at + begin + length:.3f})'"
+                    f"[c{k}_{n}]")
+                last = f"c{k}_{n}"
     base = 2 + burned
     for i in range(len(spec["segments"])):
         inputs += ["-i", str(voice_file(work, provider, lang, i))]
@@ -453,11 +486,12 @@ def main():
         else:
             launch(a.machine, window, work / window)
             starts = record(spec, a.machine, slots, work / window)
+        clicks = json.loads((work / window / "timing.json").read_text()).get("clicks", [])
         print(window, "segments start at", ", ".join(f"{s:.1f}s" for s in starts))
         for provider in providers:
             for lang in langs:
                 print(render(spec, provider, lang, starts, work, window, a.out,
-                             a.captions, a.crop))
+                             a.captions, a.crop, clicks))
 
 
 if __name__ == "__main__":
