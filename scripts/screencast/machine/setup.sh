@@ -9,6 +9,10 @@ here=$(cd "$(dirname "$0")" && pwd)
 
 # Stay awake and unlocked while recording.
 defaults -currentHost write com.apple.screensaver idleTime 0
+# A sleeping display locks the machine and a take then types into the lock
+# screen: never sleep or lock, also after a restart, where caffeinate is gone.
+echo admin | sudo -S pmset -a displaysleep 0 sleep 0 disksleep 0 2>/dev/null || true
+echo admin | sudo -S sysadminctl -screenLock off -password admin 2>/dev/null || true
 pkill -x caffeinate 2>/dev/null || true
 nohup caffeinate -dimsu >/dev/null 2>&1 &
 

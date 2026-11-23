@@ -1,69 +1,69 @@
 WEBVTT
 
 1
-00:00:01.000 --> 00:00:06.300
+00:00:01.000 --> 00:00:06.880
 Voici Sheprd : vos terminaux et vos agents de code, réunis dans une seule fenêtre.
 
 2
-00:00:06.705 --> 00:00:12.005
+00:00:07.282 --> 00:00:13.082
 À gauche, vos espaces, un par projet, et en dessous chaque agent au travail.
 
 3
-00:00:12.888 --> 00:00:16.268
+00:00:13.888 --> 00:00:17.768
 Cliquez sur « new » pour créer un nouvel espace.
 
 4
-00:00:16.271 --> 00:00:21.971
+00:00:17.772 --> 00:00:23.972
 Dans un dépôt, un nouveau worktree donne à un agent sa propre branche et son propre dossier.
 
 5
-00:00:24.191 --> 00:00:31.331
+00:00:25.834 --> 00:00:33.394
 Le bouton d'agent, à côté du bouton de nouvel onglet, ouvre un chat avec Claude, Codex, Gemini ou un autre agent.
 
 6
-00:00:31.817 --> 00:00:37.597
+00:00:34.037 --> 00:00:40.317
 Demandez une modification, et suivez chaque fichier lu, chaque modification et chaque test.
 
 7
-00:00:37.839 --> 00:00:45.699
+00:00:40.644 --> 00:00:49.164
 Un chat est une vue native d'un agent qui tourne dans un terminal. Ce bouton affiche ce terminal, et « Chat » ramène le chat.
 
 8
-00:00:45.784 --> 00:00:51.404
+00:00:49.169 --> 00:00:55.289
 Chaque espace contient des onglets, et chaque onglet peut se diviser en volets, côte à côte.
 
 9
-00:00:51.405 --> 00:00:59.345
+00:00:55.293 --> 00:01:03.973
 La barre d'activité donne accès au reste : une vue d'ensemble de vos agents, les pull requests, les tickets, l'utilisation, et plus.
 
 10
-00:01:02.481 --> 00:01:07.781
+00:01:06.510 --> 00:01:12.230
 La barre d'état surveille la machine, et affiche l'utilisation de vos abonnements si vous l'activez.
 
 11
-00:01:07.862 --> 00:01:16.362
+00:01:12.235 --> 00:01:21.235
 « Devices » liste chaque machine sur laquelle vous travaillez. Ajoutez des hôtes SSH ou des machines cloud, et leurs agents apparaissent ici aussi.
 
 12
-00:01:16.371 --> 00:01:22.871
+00:01:21.240 --> 00:01:28.000
 Les agents peuvent aussi ouvrir des pages web à côté de vous. Demandez un aperçu, et la page s'ouvre dans un onglet.
 
 13
-00:01:22.876 --> 00:01:29.056
+00:01:28.004 --> 00:01:34.684
 Annotez-la : cliquez sur n'importe quel élément, écrivez ce qui doit changer, et envoyez-le à l'agent.
 
 14
-00:01:31.379 --> 00:01:36.119
+00:01:36.677 --> 00:01:41.917
 L'agent reçoit votre note, fait la modification, et la page se recharge.
 
 15
-00:01:36.123 --> 00:01:41.263
+00:01:41.922 --> 00:01:47.482
 Les réglages s'ouvrent sur les thèmes : survolez-en un pour l'essayer sur toute la fenêtre.
 
 16
-00:01:45.289 --> 00:01:51.149
+00:01:51.121 --> 00:01:57.561
 Choisissez la disposition de la barre latérale, les indicateurs d'état, et l'apparence des onglets.
 
 17
-00:01:55.455 --> 00:02:00.275
+00:02:01.519 --> 00:02:06.839
 Voilà pour la visite. Chaque fonctionnalité a son propre petit guide ci-dessous.

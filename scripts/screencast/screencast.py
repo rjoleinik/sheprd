@@ -53,8 +53,8 @@ FPS = 60
 LEAD_IN = 1.0  # seconds of screen before the first segment
 # screencapture can take seconds to start recording, so wait this long before
 # the first segment and trim what it caught before LEAD_IN.
-WARMUP = 12.0
-GAP = 0.5  # silence after each segment's voice
+WARMUP = 16.0
+GAP = 1.0  # silence after each segment's voice, to take in what was shown
 TAIL = 1.5  # seconds after the last segment
 CHUNK = 45000  # bytes per pulled chunk; base64 of it stays under the exec output cap
 APP = "~/Apps/Sheprd.app"
@@ -115,6 +115,9 @@ def speak(spec, providers, langs, work, cache):
 
 # The window being recorded, for steps that differ between windows.
 WINDOW = None
+# screencapture writes a frame a little after the screen shows it, so a ring
+# drawn at the logged time would come before the click it marks.
+RECORDER_LAG = 0.05
 # Clicks made while recording, as (monotonic time, x, y) in screenshot pixels,
 # so the render can mark where each lands.
 CLICKS = []
@@ -147,8 +150,9 @@ def act(name, action):
         # redrawn in, so the press would land on the old hover.
         machine(name, "exec", "--", HOVER, str(x / 2), str(y / 2))
         time.sleep(0.2)
-        CLICKS.append((time.monotonic(), x, y))
         machine(name, "click", str(x), str(y), *(["--right"] if "right" in extra else []))
+        # When the press landed: the command returns once it is posted.
+        CLICKS.append((time.monotonic(), x, y))
     elif kind == "hover":
         # Point at something without clicking: a theme previews, a tooltip
         # shows, or the viewer's eye follows the pointer there.
@@ -229,7 +233,15 @@ def record(spec, name, slots, work):
         machine(name, "exec", "--", "sh", "-c", f"kill -INT {recorder}; sleep 2")
 
     try:
-        time.sleep(WARMUP)
+        # A sync mark the render finds: Sheprd hides at a known moment, the
+        # screen turns to the bright desktop, and it comes back. It falls in
+        # the warm-up, which the render cuts.
+        time.sleep(WARMUP - 4)
+        mark = time.monotonic() - t0
+        machine(name, "key", "cmd+h")
+        time.sleep(1.2)
+        machine(name, "exec", "--", "sh", "-c", f"open {APP}")
+        time.sleep(2.8)
         starts = []
         for seg, slot in zip(spec["segments"], slots):
             begin = time.monotonic()
@@ -256,8 +268,15 @@ def record(spec, name, slots, work):
 
     raw = work / "screen.mov"
     pull(name, movie, raw)
-    # The movie ends when it was stopped; place segment starts on its clock.
-    offset = duration(raw) - stopped
+    # Place the segment starts and clicks on the movie's clock by the sync
+    # mark; the movie's end is not reliable, as stopping the recorder drops
+    # its last seconds.
+    seen = mark_time(raw, mark)
+    if seen is None:
+        print("no sync mark found; aligning on the movie's end", file=sys.stderr)
+        offset = duration(raw) - stopped
+    else:
+        offset = seen - mark
     starts = [s + offset for s in starts]
     clicks = [[at - t0 + offset, x, y] for at, x, y in CLICKS if at - t0 < stopped]
     (work / "timing.json").write_text(json.dumps({"starts": starts, "slots": slots,
@@ -265,12 +284,43 @@ def record(spec, name, slots, work):
     return starts
 
 
+def mark_time(movie, around):
+    """When the screen first turns bright (Sheprd hidden, the desktop showing)
+    in the movie, searching from 4 s before to 8 s after `around` seconds."""
+    out = subprocess.run(
+        ["ffmpeg", "-v", "error", "-ss", f"{max(0.0, around - 4):.2f}", "-t", "12", "-i", str(movie),
+         "-vf", "scale=320:-1,signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=-",
+         "-f", "null", "-"], capture_output=True, text=True, check=True).stdout
+    frames, at = [], None
+    for line in out.splitlines():
+        if line.startswith("frame:"):
+            at = float(line.split("pts_time:")[1]) + max(0.0, around - 4)
+        elif "YAVG=" in line and at is not None:
+            frames.append((at, float(line.split("=")[1])))
+    if len(frames) < 2:
+        return None
+    dark = min(y for _, y in frames)
+    bright = max(y for _, y in frames)
+    if bright - dark < 25:
+        return None
+    return next(t for t, y in frames if y > (dark + bright) / 2)
+
+
 def pull(name, remote, local):
     size = int(machine(name, "exec", "--", "stat", "-f", "%z", remote).strip())
     with open(local, "wb") as f:
         for i in range((size + CHUNK - 1) // CHUNK):
-            out = machine(name, "exec", "--", "sh", "-c",
-                          f"dd if={remote} bs={CHUNK} skip={i} count=1 2>/dev/null | base64")
+            # The agent's connection drops now and then; a chunk is asked again
+            # rather than losing a whole take.
+            for attempt in range(4):
+                try:
+                    out = machine(name, "exec", "--", "sh", "-c",
+                                  f"dd if={remote} bs={CHUNK} skip={i} count=1 2>/dev/null | base64")
+                    break
+                except subprocess.CalledProcessError:
+                    if attempt == 3:
+                        raise
+                    time.sleep(2)
             f.write(base64.b64decode(out))
     if local.stat().st_size != size:
         sys.exit(f"pulled {local.stat().st_size} of {size} bytes")
@@ -293,9 +343,14 @@ def caption(text, lang, path, size, width):
 
 
 def title_card(text, lang, path):
-    run("magick", "-background", "#000000b0", "-fill", "white", "-font", font(lang),
-        "-pointsize", "64", f"label:{text}", "-bordercolor", "#000000b0",
-        "-border", "40x24", str(path))
+    """The video's title as a lower third: white text on no box, lifted off
+    the screen behind it by a soft shadow rather than a black band."""
+    run("magick", "-background", "none", "-fill", "white", "-font", font(lang),
+        "-pointsize", "58", f"label:{text}", "-bordercolor", "none", "-border", "40x30",
+        "(", "+clone", "-background", "black", "-shadow", "85x10+0+3", ")",
+        "+swap", "-background", "none", "-layers", "merge", "+repage",
+        "(", "+clone", "-background", "black", "-shadow", "55x26+0+0", ")",
+        "+swap", "-background", "none", "-layers", "merge", "+repage", f"PNG32:{path}")
 
 
 # How a segment's `shortcut` (the other platforms' keys, as the command catalog
@@ -360,7 +415,7 @@ def render(spec, provider, lang, starts, work, window, out, captions=False, crop
     # before that is cut.
     head = max(0.0, starts[0] - LEAD_IN)
     starts = [start - head for start in starts]
-    clicks = [(at - head, x, y) for at, x, y in clicks if at - head > 0]
+    clicks = [(at - head + RECORDER_LAG, x, y) for at, x, y in clicks if at - head > 0]
     d = work / window / "render" / slug(provider) / lang
     d.mkdir(parents=True, exist_ok=True)
     title_card(spec["title"][lang], lang, d / "title.png")
@@ -373,7 +428,7 @@ def render(spec, provider, lang, starts, work, window, out, captions=False, crop
         f"[0:v]fps={FPS},trim=start={head:.3f},setpts=PTS-STARTPTS,"
         f"tpad=stop_mode=clone:stop_duration=5,crop=iw:ih*{crop}:0:0,scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=decrease,"
         f"pad={WIDTH}:{HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=0x101014[v0]",
-        f"[v0][1:v]overlay=(W-w)/2:150:shortest=1:enable='lt(t,{starts[1]:.3f})'[v1]",
+        f"[v0][1:v]overlay=(W-w)/2:H-h-90:shortest=1:enable='lt(t,{starts[1]:.3f})'[v1]",
     ]
     srt, audio_labels = [], []
     last = "v1"
