@@ -392,7 +392,7 @@ def fits(recorded, wanted, window):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("feature", type=Path)
-    p.add_argument("--machine", default="agent-test")
+    p.add_argument("--machine", default="screencast")
     p.add_argument("--out", type=Path, default=Path("target/screencasts"))
     p.add_argument("--langs", default=",".join(LANGS))
     p.add_argument("--window", default=",".join(WINDOWS),

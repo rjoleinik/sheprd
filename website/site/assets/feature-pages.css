@@ -90,3 +90,6 @@
 .feature-pager a { display: flex; flex-direction: column; gap: .3rem; text-decoration: none; font: 500 1.2rem/1.3 var(--serif); color: var(--ink); }
 .feature-pager a span { font: .75rem var(--sans); color: var(--ink-2); }
 .feature-pager a[rel="next"] { text-align: right; }
+
+/* The basics tour atop the features index. */
+.tour-demo { padding: 0 0 3rem; }

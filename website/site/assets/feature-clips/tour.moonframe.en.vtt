@@ -1,0 +1,33 @@
+WEBVTT
+
+1
+00:00:01.000 --> 00:00:05.980
+This is Sheprd: one window for your terminals and your coding agents.
+
+2
+00:00:05.983 --> 00:00:11.043
+Each project gets a workspace in the sidebar, with real terminals in tabs.
+
+3
+00:00:11.284 --> 00:00:16.424
+Start an agent with the button next to the new tab button, and ask for a change.
+
+4
+00:00:16.427 --> 00:00:22.527
+It works in the open: every file it reads, every edit, and every test it runs.
+
+5
+00:00:22.532 --> 00:00:26.872
+When it's done, Review Changes shows exactly what changed.
+
+6
+00:00:27.437 --> 00:00:31.457
+Read it line by line, and leave notes the agent picks up.
+
+7
+00:00:31.697 --> 00:00:37.637
+And Command Shift P opens the palette: everything Sheprd does, one search away.
+
+8
+00:00:37.639 --> 00:00:42.059
+That's the basics. Every feature has its own short guide below.

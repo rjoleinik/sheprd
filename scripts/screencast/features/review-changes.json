@@ -8,7 +8,7 @@
     ],
     [
       "exec",
-      "printf '%s\\n' '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"session/prompt\",\"params\":{\"sessionId\":\"s1\"}}' | ~/stub/gemini >/dev/null"
+      "printf '%s\\n' '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"session/prompt\",\"params\":{\"sessionId\":\"s1\"}}' | ~/.local/bin/gemini >/dev/null"
     ],
     [
       "key",

@@ -38,6 +38,11 @@ def catalog():
     return json.loads(CATALOG.read_text())["features"]
 
 
+def tour():
+    """The basics video the index opens with, if the catalog names one."""
+    return json.loads(CATALOG.read_text()).get("tour")
+
+
 sys.path.insert(0, str(ROOT / "scripts/screencast"))
 import transcript  # noqa: E402
 
@@ -66,7 +71,7 @@ def publish():
     """Copy every rendered clip of the catalog's features into the site."""
     CLIPS.mkdir(parents=True, exist_ok=True)
     manifest = {}
-    for feature in catalog():
+    for feature in catalog() + ([tour()] if tour() else []):
         fid = feature["id"]
         windows, langs, starts, length = [], set(), None, 0.0
         for window in WINDOW_ORDER:
@@ -113,12 +118,35 @@ def clock(t):
     return f"{int(t // 60)}:{int(t % 60):02d}"
 
 
-def page(title, description, path, script, main):
+def page(title, description, path, scripts, main):
     shell = TEMPLATE.read_text()
     for key, value in (("{title}", esc(title)), ("{description}", esc(description)),
-                       ("{path}", path), ("{script}", script), ("{main}", main)):
+                       ("{path}", path),
+                       ("{scripts}", "".join(f'<script src="/assets/{name}" defer></script>'
+                                             for name in scripts)),
+                       ("{main}", main)):
         shell = shell.replace(key, value)
     return shell
+
+
+def player(fid, label, clip):
+    """A demo video with its window and language switches (feature-demo.js)."""
+    base = f"/assets/feature-clips/{fid}"
+    window, lang = clip["windows"][0], "en"
+    switches = "".join(
+        f'<span class="demo-langs" role="group" aria-label="{group}">' + "".join(
+            f'<button type="button" data-{key}="{v}" aria-pressed="{str(v == first).lower()}"'
+            + (f' lang="{v}"' if key == "lang" else "") + f">{names[v]}</button>" for v in values)
+        + "</span>"
+        for key, group, values, first, names in (
+            ("window", "Window", clip["windows"], window, WINDOW_LABELS),
+            ("lang", "Narration language", clip["langs"], lang, LANG_LABELS))
+        if len(values) > 1)
+    return (f'<video id="feature-demo" controls playsinline preload="metadata" poster="{base}.jpg" '
+            f'data-clips="{base}" data-window="{window}" aria-label="{esc(label)}, narrated demonstration">\n'
+            f'<source src="{base}.{window}.{lang}.mp4" type="video/mp4"><track kind="captions" '
+            f'src="{base}.{window}.{lang}.vtt" srclang="{lang}" label="{LANG_LABELS[lang]}">\n'
+            f'<a href="{base}.{window}.{lang}.mp4">Download the demo</a>.</video>', switches)
 
 
 def feature_page(feature, index, features, clip):
@@ -158,7 +186,7 @@ def feature_page(feature, index, features, clip):
 <details class="demo-transcript"><summary>Read the video transcript</summary>{transcript}</details>
 <nav class="feature-pager" aria-label="More features"><a rel="prev" href="/features/{prev_f["id"]}/"><span>← Previous</span>{esc(prev_f["kicker"])}</a><a rel="next" href="/features/{next_f["id"]}/"><span>Next →</span>{esc(next_f["kicker"])}</a></nav>'''
     return page(f'{feature["kicker"]} · Sheprd', feature["description"],
-                f"/features/{fid}/", "feature-demo.js", main)
+                f"/features/{fid}/", ["feature-demo.js"], main)
 
 
 def index_page(features, manifest):
@@ -180,11 +208,18 @@ def index_page(features, manifest):
     chips = "".join(f'<button type="button" data-category="{esc(c)}" aria-pressed="false">{esc(c)}</button>'
                     for c in categories)
     data = json.dumps(entries, ensure_ascii=False).replace("</", "<\\/")
+    basics = ""
+    if tour() and "tour" in manifest:
+        clip = manifest["tour"]
+        video, switches = player("tour", "A tour of Sheprd", clip)
+        basics = f'''<figure class="demo tour-demo">{video}
+<figcaption><span class="demo-switches">{switches}</span><span>New to Sheprd? Start here · {round(clip["length"])} seconds</span></figcaption></figure>'''
     main = f'''<section class="feature-intro">
 <p class="kicker">The field guide</p>
 <h1>A little tour.<br>A lot you can do.</h1>
 <p class="feature-dek">Short narrated demos of what Sheprd does, each under half a minute,<br class="desktop-break"> in English and French, in the window you use.</p>
 </section>
+{basics}
 <search class="feature-search" role="search">
 <label for="feature-query" class="sr-only">Search the features</label>
 <input id="feature-query" type="search" placeholder="Search features, e.g. review, theme, agent…" autocomplete="off" spellcheck="false">
@@ -195,7 +230,7 @@ def index_page(features, manifest):
 <p class="feature-empty" id="feature-empty" hidden>Nothing matches yet. Try another word, or <a href="/docs/">search the documentation</a>.</p>
 <script type="application/json" id="feature-index">{data}</script>'''
     return page("Features · Sheprd", "Short narrated demos of what Sheprd does: agents, review, navigation and more.",
-                "/features/", "feature-search.js", main)
+                "/features/", ["feature-demo.js", "feature-search.js"], main)
 
 
 def build():

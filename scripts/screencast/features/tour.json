@@ -1,0 +1,300 @@
+{
+  "id": "tour",
+  "feature": "A tour of Sheprd",
+  "setup": [
+    [
+      "exec",
+      "cd ~/code/forecast && git reset -q --hard && git clean -qfd; sed -i '' 's/^theme = .*/theme = \"Default\"/' ~/.config/herdr/config-gpui.local.toml; sleep 1"
+    ],
+    [
+      "key",
+      "escape"
+    ],
+    [
+      "click",
+      1600,
+      1000
+    ],
+    [
+      "key",
+      "cmd+shift+n"
+    ],
+    [
+      "wait",
+      1.5
+    ],
+    [
+      "type",
+      "cd ~/code/forecast"
+    ],
+    [
+      "key",
+      "return"
+    ],
+    [
+      "wait",
+      0.6
+    ],
+    [
+      "key",
+      "cmd+k"
+    ],
+    [
+      "wait",
+      0.8
+    ],
+    [
+      "exec",
+      "cd ~/code/forecast && ~/Apps/Sheprd.app/Contents/MacOS/sheprd chat new gemini >/dev/null; sleep 4"
+    ],
+    [
+      "click",
+      1900,
+      600
+    ],
+    [
+      "key",
+      "cmd+w"
+    ],
+    [
+      "wait",
+      1.5
+    ],
+    [
+      "click",
+      700,
+      700
+    ]
+  ],
+  "segments": [
+    {
+      "actions": []
+    },
+    {
+      "actions": [
+        [
+          "wait",
+          0.4
+        ],
+        [
+          "type",
+          "python3 forecast.py paris"
+        ],
+        [
+          "wait",
+          0.3
+        ],
+        [
+          "key",
+          "return"
+        ]
+      ]
+    },
+    {
+      "actions": [
+        [
+          "wait",
+          0.3
+        ],
+        [
+          "click",
+          {
+            "moonframe": [
+              883,
+              92
+            ],
+            "classic": [
+              880,
+              94
+            ]
+          }
+        ],
+        [
+          "wait",
+          2.5
+        ],
+        [
+          "click",
+          1900,
+          1252
+        ],
+        [
+          "type",
+          "Add a --json flag to the forecast command"
+        ],
+        [
+          "wait",
+          0.4
+        ],
+        [
+          "key",
+          "return"
+        ]
+      ]
+    },
+    {
+      "actions": []
+    },
+    {
+      "actions": [
+        [
+          "wait",
+          0.3
+        ],
+        [
+          "key",
+          "cmd+shift+p"
+        ],
+        [
+          "wait",
+          0.7
+        ],
+        [
+          "type",
+          "review"
+        ],
+        [
+          "wait",
+          0.6
+        ],
+        [
+          "key",
+          "return"
+        ]
+      ]
+    },
+    {
+      "actions": [
+        [
+          "wait",
+          0.3
+        ],
+        [
+          "click",
+          {
+            "moonframe": [
+              1229,
+              538
+            ],
+            "classic": [
+              1219,
+              545
+            ]
+          }
+        ],
+        [
+          "wait",
+          0.7
+        ],
+        [
+          "type",
+          "Also print an error for unknown cities"
+        ],
+        [
+          "wait",
+          0.3
+        ],
+        [
+          "click",
+          {
+            "moonframe": [
+              2035,
+              337
+            ],
+            "classic": [
+              2043,
+              358
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "actions": [
+        [
+          "wait",
+          0.4
+        ],
+        [
+          "key",
+          "cmd+shift+p"
+        ],
+        [
+          "wait",
+          1.2
+        ],
+        [
+          "type",
+          "theme"
+        ],
+        [
+          "wait",
+          1.5
+        ],
+        [
+          "key",
+          "escape"
+        ]
+      ],
+      "shortcut": "ctrl-shift-p"
+    },
+    {
+      "actions": []
+    }
+  ],
+  "teardown": [
+    [
+      "key",
+      "escape"
+    ],
+    [
+      "key",
+      "escape"
+    ],
+    [
+      "key",
+      "escape"
+    ],
+    [
+      "click",
+      1600,
+      1000
+    ],
+    [
+      "key",
+      "cmd+shift+p"
+    ],
+    [
+      "wait",
+      0.8
+    ],
+    [
+      "type",
+      "close workspace"
+    ],
+    [
+      "wait",
+      0.8
+    ],
+    [
+      "key",
+      "return"
+    ],
+    [
+      "wait",
+      1.2
+    ],
+    [
+      "type",
+      "close"
+    ],
+    [
+      "key",
+      "return"
+    ],
+    [
+      "wait",
+      1.5
+    ]
+  ]
+}
