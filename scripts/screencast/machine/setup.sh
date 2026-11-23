@@ -17,6 +17,13 @@ nohup caffeinate -dimsu >/dev/null 2>&1 &
 defaults write com.apple.dock autohide -bool true
 defaults write com.apple.WindowManager StandardHideWidgets -bool true
 defaults write com.apple.menuextra.clock ShowSeconds -bool true
+# Hide the macOS menu bar so the window fills a 16:9 frame (System Settings >
+# Menu Bar > Automatically hide: Always, which needs a log-out to apply). A
+# video of a feature in a menu sets it back for itself. The larger pointer
+# (Accessibility > Display > Pointer size, one step) cannot be set from a
+# script: macOS protects that setting, so it is set by hand once.
+defaults write NSGlobalDomain _HIHideMenuBar -bool true
+defaults write NSGlobalDomain AppleMenuBarVisibleInFullscreen -bool false
 killall Dock ControlCenter 2>/dev/null || true
 
 # The agents a chat can pick: real Claude Code and Codex, plus the scripted

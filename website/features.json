@@ -1,5 +1,5 @@
 {
-  "_comment": "The feature guides on sheprd.org/features, in the order shown. Each id names its screencast, scripts/screencast/features/ID.json, whose narration is the page's transcript. Run website/tools/features.py after changing this file or a clip.",
+  "_comment": "The feature guides on sheprd.org/features, in the order shown. Each id names its screencast, scripts/screencast/features/ID.json, whose narration is the page's transcript. Run website/tools/features.py after changing this file or a clip. `poster` (seconds) picks the still a page shows before playing; change it and run `features.py posters`.",
   "features": [
     {
       "id": "agent-chat",
@@ -210,6 +210,7 @@
   ],
   "tour": {
     "id": "tour",
-    "description": "The basics in under a minute: workspaces and terminals, an agent chat, reviewing its change, and the command palette."
+    "description": "The basics in under a minute: workspaces and terminals, an agent chat, reviewing its change, and the command palette.",
+    "poster": 98.0
   }
 }

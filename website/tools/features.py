@@ -3,6 +3,7 @@
 
   python3 website/tools/features.py publish   # copy the rendered clips in (needs ffmpeg)
   python3 website/tools/features.py build     # write the pages from what is published
+  python3 website/tools/features.py posters   # re-pick stills after editing `poster`
 
 `publish` takes each feature's MP4s and subtitles from target/screencasts (what
 scripts/screencast/screencast.py renders), writes WebVTT captions and a poster,
@@ -67,6 +68,28 @@ def probe(path):
     return float(out.strip())
 
 
+def poster(fid, window, at, starts):
+    """The still a page shows before its video plays: the frame at `at`
+    seconds (the catalog's `poster`), else one into the third segment."""
+    if at is None:
+        at = starts[min(2, len(starts) - 1)] + 1.5
+    first = CLIPS / f"{fid}.{window}.en.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{at:.2f}", "-i", str(first),
+                    "-frames:v", "1", "-vf", "scale=1600:-1", "-q:v", "3",
+                    str(CLIPS / f"{fid}.jpg")], check=True)
+
+
+def posters():
+    """Pick each published video's still again, after changing `poster` in
+    website/features.json, without copying any clip."""
+    manifest = json.loads((CLIPS / "manifest.json").read_text())
+    for feature in catalog() + ([tour()] if tour() else []):
+        clip = manifest.get(feature["id"])
+        if clip:
+            poster(feature["id"], clip["windows"][0], feature.get("poster"), clip["starts"])
+            print(f"poster {feature['id']}: {feature.get('poster', 'default')}")
+
+
 def publish():
     """Copy every rendered clip of the catalog's features into the site."""
     CLIPS.mkdir(parents=True, exist_ok=True)
@@ -94,12 +117,7 @@ def publish():
         if not windows:
             print(f"skipped {fid}: no clips in {RENDERS}", file=sys.stderr)
             continue
-        # The poster: a moment into the third segment, where the feature shows.
-        at = starts[min(2, len(starts) - 1)] + 1.5
-        first = CLIPS / f"{fid}.{windows[0]}.en.mp4"
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{at:.2f}", "-i", str(first),
-                        "-frames:v", "1", "-vf", "scale=1600:-1", "-q:v", "3",
-                        str(CLIPS / f"{fid}.jpg")], check=True)
+        poster(fid, windows[0], feature.get("poster"), starts)
         manifest[fid] = {"windows": windows, "langs": sorted(langs, key=list(LANG_LABELS).index),
                          "length": round(length, 1), "starts": [round(s, 2) for s in starts]}
         print(f"published {fid}: {', '.join(windows)}, {length:.0f}s")
@@ -247,4 +265,4 @@ def build():
 
 if __name__ == "__main__":
     command = sys.argv[1] if len(sys.argv) > 1 else "build"
-    {"publish": publish, "build": build}.get(command, lambda: sys.exit(__doc__))()
+    {"publish": publish, "build": build, "posters": posters}.get(command, lambda: sys.exit(__doc__))()

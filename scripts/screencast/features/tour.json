@@ -1,7 +1,7 @@
 {
   "id": "tour",
   "feature": "A tour of Sheprd",
-  "_comment": "Starts with one space, Home, then opens the demo repo as the forecast space (not shown). Positions are the Moonframe window's at 2560x1440; the classic window's are measured separately where they differ.",
+  "_comment": "Starts with one space, admin, then opens the demo repo as the forecast space (not shown). Positions are the Moonframe window's at 2560x1440 with the macOS menu bar auto-hidden (machine/setup); the classic window's are measured separately where they differ.",
   "setup": [
     [
       "exec",
@@ -36,7 +36,7 @@
     [
       "click",
       1024,
-      348
+      289
     ],
     [
       "wait",
@@ -132,7 +132,7 @@
         [
           "click",
           151,
-          717
+          684
         ],
         [
           "wait",
@@ -149,7 +149,7 @@
         [
           "click",
           220,
-          384,
+          325,
           "right"
         ],
         [
@@ -159,7 +159,7 @@
         [
           "click",
           341,
-          563
+          504
         ],
         [
           "wait",
@@ -176,7 +176,7 @@
         [
           "click",
           1741,
-          1251
+          1221
         ],
         [
           "wait",
@@ -193,7 +193,7 @@
         [
           "click",
           883,
-          92
+          33
         ],
         [
           "wait",
@@ -244,7 +244,7 @@
         [
           "click",
           2509,
-          164
+          105
         ],
         [
           "wait",
@@ -253,7 +253,7 @@
         [
           "click",
           2483,
-          171
+          112
         ]
       ]
     },
@@ -282,13 +282,26 @@
     {
       "actions": [
         [
+          "click",
+          2000,
+          700
+        ],
+        [
+          "key",
+          "cmd+w"
+        ],
+        [
+          "wait",
+          0.8
+        ],
+        [
           "wait",
           0.3
         ],
         [
           "click",
           41,
-          248
+          189
         ],
         [
           "wait",
@@ -297,7 +310,7 @@
         [
           "click",
           41,
-          320
+          261
         ],
         [
           "wait",
@@ -306,7 +319,7 @@
         [
           "click",
           41,
-          392
+          333
         ],
         [
           "wait",
@@ -315,7 +328,7 @@
         [
           "click",
           41,
-          750
+          691
         ],
         [
           "wait",
@@ -324,7 +337,7 @@
         [
           "click",
           41,
-          174
+          115
         ]
       ]
     },
@@ -400,7 +413,7 @@
         [
           "click",
           2398,
-          162
+          103
         ],
         [
           "wait",
@@ -409,7 +422,7 @@
         [
           "click",
           1766,
-          986
+          927
         ],
         [
           "wait",
@@ -418,7 +431,7 @@
         [
           "click",
           2240,
-          553
+          494
         ],
         [
           "type",
@@ -431,7 +444,7 @@
         [
           "click",
           2040,
-          609
+          550
         ],
         [
           "wait",
@@ -459,6 +472,18 @@
           "escape"
         ],
         [
+          "key",
+          "escape"
+        ],
+        [
+          "key",
+          "cmd+w"
+        ],
+        [
+          "wait",
+          0.8
+        ],
+        [
           "wait",
           0.3
         ],
@@ -473,8 +498,8 @@
         ],
         [
           "hover",
-          1293,
-          1075
+          1280,
+          1015
         ],
         [
           "wait",
@@ -482,8 +507,8 @@
         ],
         [
           "hover",
-          1638,
-          1249
+          1640,
+          1170
         ],
         [
           "wait",
@@ -501,7 +526,7 @@
         [
           "click",
           460,
-          451
+          393
         ],
         [
           "wait",
@@ -510,7 +535,7 @@
         [
           "click",
           470,
-          515
+          456
         ],
         [
           "wait",
@@ -518,8 +543,8 @@
         ],
         [
           "click",
-          939,
-          921
+          990,
+          640
         ],
         [
           "wait",
@@ -528,7 +553,7 @@
         [
           "click",
           495,
-          838
+          780
         ],
         [
           "wait",
@@ -536,21 +561,12 @@
         ],
         [
           "click",
-          1487,
-          421
+          1972,
+          362
         ],
         [
           "wait",
-          1.2
-        ],
-        [
-          "click",
-          1971,
-          421
-        ],
-        [
-          "wait",
-          1.2
+          1.4
         ],
         [
           "key",

@@ -1,33 +1,69 @@
 WEBVTT
 
 1
-00:00:01.000 --> 00:00:05.980
-This is Sheprd: one window for your terminals and your coding agents.
+00:00:01.000 --> 00:00:06.700
+This is Sheprd: your terminals and your coding agents, together in one window.
 
 2
-00:00:05.983 --> 00:00:11.043
-Each project gets a workspace in the sidebar, with real terminals in tabs.
+00:00:06.705 --> 00:00:12.885
+On the left are your spaces, one per project, and below them every agent at work.
 
 3
-00:00:11.284 --> 00:00:16.424
-Start an agent with the button next to the new tab button, and ask for a change.
+00:00:12.888 --> 00:00:15.708
+Click new to start a fresh space.
 
 4
-00:00:16.427 --> 00:00:22.527
-It works in the open: every file it reads, every edit, and every test it runs.
+00:00:16.271 --> 00:00:22.131
+For a repository, a new worktree gives an agent its own branch and folder to work in.
 
 5
-00:00:22.532 --> 00:00:26.872
-When it's done, Review Changes shows exactly what changed.
+00:00:24.191 --> 00:00:31.811
+The agent button, next to the new tab button, opens a chat with Claude, Codex, Gemini or another agent.
 
 6
-00:00:27.437 --> 00:00:31.457
-Read it line by line, and leave notes the agent picks up.
+00:00:31.817 --> 00:00:37.837
+Ask for a change, and follow every file it reads, every edit and every test.
 
 7
-00:00:31.697 --> 00:00:37.637
-And Command Shift P opens the palette: everything Sheprd does, one search away.
+00:00:37.839 --> 00:00:45.779
+A chat is a native view of an agent running in a terminal. This button shows that terminal, and Chat brings the chat back.
 
 8
-00:00:37.639 --> 00:00:42.059
-That's the basics. Every feature has its own short guide below.
+00:00:45.784 --> 00:00:51.404
+Each space holds tabs, and each tab can split into panes, side by side.
+
+9
+00:00:51.405 --> 00:00:58.545
+The activity bar opens more: an overview of your agents, pull requests, issues, usage and more.
+
+10
+00:01:02.481 --> 00:01:07.861
+The status bar keeps an eye on the machine, and shows your plan usage when you turn it on.
+
+11
+00:01:07.862 --> 00:01:15.722
+Devices lists every machine you work on. Add SSH hosts or cloud machines, and their agents show up here too.
+
+12
+00:01:16.371 --> 00:01:22.471
+Agents can open web pages beside you too. Ask for a preview, and the page opens in a tab.
+
+13
+00:01:22.876 --> 00:01:28.816
+Annotate it: click anything on the page, write what should change, and send it to the agent.
+
+14
+00:01:31.379 --> 00:01:35.799
+The agent gets your note, makes the change, and the page reloads.
+
+15
+00:01:36.123 --> 00:01:41.103
+Settings opens on themes: hover one to try it on the whole window.
+
+16
+00:01:45.289 --> 00:01:50.109
+Pick the sidebar layout, the status indicators, and how tabs look.
+
+17
+00:01:55.455 --> 00:01:59.715
+That's the tour. Every feature has its own short guide below.

@@ -48,6 +48,8 @@ LATIN_FONT = "/System/Library/Fonts/SFNS.ttf"
 CJK_FONT = "/System/Library/Fonts/Hiragino Sans GB.ttc"
 
 WIDTH, HEIGHT = 1920, 1080
+# The guest screen refreshes at 60 Hz, which YouTube and X also play at most.
+FPS = 60
 LEAD_IN = 1.0  # seconds of screen before the first segment
 # screencapture can take seconds to start recording, so wait this long before
 # the first segment and trim what it caught before LEAD_IN.
@@ -114,7 +116,7 @@ def speak(spec, providers, langs, work, cache):
 # The window being recorded, for steps that differ between windows.
 WINDOW = None
 # Clicks made while recording, as (monotonic time, x, y) in screenshot pixels,
-# so the render can draw a glow where each lands.
+# so the render can mark where each lands.
 CLICKS = []
 
 
@@ -324,10 +326,29 @@ def srt_time(t):
     return f"{ms // 3600000:02}:{ms // 60000 % 60:02}:{ms // 1000 % 60:02},{ms % 1000:03}"
 
 
-def glow(path, size, alpha):
-    """A soft round glow to mark a click: bright in the middle, fading out."""
-    run("magick", "-size", f"{size}x{size}", "radial-gradient:#ffd27aff-#ffd27a00",
-        "-channel", "A", "-evaluate", "multiply", str(alpha), "+channel", str(path))
+# A click shows as a thin ring that grows from the pointer and fades, as
+# Screen Studio and similar apps mark clicks: RING_FRAMES images, each shown
+# for one frame in turn, from a small opaque ring to a wide faint one.
+RING_FRAMES = 14
+RING_BOX = 96
+
+
+def ring_frames(folder):
+    paths = []
+    for i in range(RING_FRAMES):
+        t = i / (RING_FRAMES - 1)
+        eased = 1 - (1 - t) ** 3
+        radius = 9 + eased * 34
+        alpha = (1 - t) ** 1.4
+        c = RING_BOX / 2
+        path = folder / f"ring{i:02d}.png"
+        run("magick", "-size", f"{RING_BOX}x{RING_BOX}", "xc:none", "-fill", "none",
+            "-stroke", f"rgba(255,255,255,{alpha * 0.95:.3f})", "-strokewidth", "3",
+            "-draw", f"circle {c},{c} {c + radius:.1f},{c}",
+            "-stroke", f"rgba(0,0,0,{alpha * 0.35:.3f})", "-strokewidth", "1",
+            "-draw", f"circle {c},{c} {c + radius + 2:.1f},{c}", f"PNG32:{path}")
+        paths.append(path)
+    return paths
 
 
 def render(spec, provider, lang, starts, work, window, out, captions=False, crop=None,
@@ -349,7 +370,7 @@ def render(spec, provider, lang, starts, work, window, out, captions=False, crop
         # Keep the top `crop` of the guest screen (the window, not the desktop below).
         # screencapture writes a frame only when the screen changes: make the
         # rate constant before cutting the warm-up, and hold the last frame.
-        f"[0:v]fps=30,trim=start={head:.3f},setpts=PTS-STARTPTS,"
+        f"[0:v]fps={FPS},trim=start={head:.3f},setpts=PTS-STARTPTS,"
         f"tpad=stop_mode=clone:stop_duration=5,crop=iw:ih*{crop}:0:0,scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=decrease,"
         f"pad={WIDTH}:{HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=0x101014[v0]",
         f"[v0][1:v]overlay=(W-w)/2:150:shortest=1:enable='lt(t,{starts[1]:.3f})'[v1]",
@@ -381,24 +402,23 @@ def render(spec, provider, lang, starts, work, window, out, captions=False, crop
                 f"enable='between(t,{start:.3f},{end:.3f})'[v{n}]"
             )
             last = f"v{n}"
-    # Each click: a bright glow under the pointer, then a wider fainter one,
-    # as screencast apps mark them. Guest pixels map to the video by the scale
-    # the screen was fitted with (crop keeps the full width).
+    # Each click: the ring frames as one short clip, shifted to the click's
+    # time and placed at its point. One overlay per click keeps the render
+    # fast. Guest pixels map to the video by the scale the screen was fitted
+    # with (full width kept).
     if clicks:
-        glow(d / "glow-near.png", 70, 0.9)
-        glow(d / "glow-far.png", 150, 0.45)
         scale = WIDTH / 2560
-        for image in ("glow-near.png", "glow-far.png"):
-            inputs += ["-loop", "1", "-i", str(d / image)]
-        near, far = 2 + burned, 3 + burned
-        burned += 2
+        ring_frames(d)
+        inputs += ["-framerate", str(FPS / 2), "-i", str(d / "ring%02d.png")]
+        ring = 2 + burned
+        burned += 1
+        filters.append(f"[{ring}:v]format=rgba,split={len(clicks)}" +
+                       "".join(f"[r{k}]" for k in range(len(clicks))))
         for k, (at, x, y) in enumerate(clicks):
-            for n, size, begin, length in ((near, 70, 0.0, 0.25), (far, 150, 0.12, 0.35)):
-                filters.append(
-                    f"[{last}][{n}:v]overlay={x * scale - size / 2:.0f}:{y * scale - size / 2:.0f}:"
-                    f"shortest=1:enable='between(t,{at + begin:.3f},{at + begin + length:.3f})'"
-                    f"[c{k}_{n}]")
-                last = f"c{k}_{n}"
+            ox, oy = x * scale - RING_BOX / 2, y * scale - RING_BOX / 2
+            filters.append(f"[r{k}]setpts=PTS-STARTPTS+{at:.3f}/TB[rs{k}]")
+            filters.append(f"[{last}][rs{k}]overlay={ox:.0f}:{oy:.0f}:eof_action=pass[c{k}]")
+            last = f"c{k}"
     base = 2 + burned
     for i in range(len(spec["segments"])):
         inputs += ["-i", str(voice_file(work, provider, lang, i))]
