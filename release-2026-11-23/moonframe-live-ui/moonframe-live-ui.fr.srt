@@ -3,13 +3,13 @@
 Ajoutons une liste de tâches à cette fenêtre, sans fermer le terminal.
 
 2
-00:00:05,603 --> 00:00:10,923
+00:00:05,685 --> 00:00:11,085
 Enregistrons la disposition Moonframe. Un compteur apparaît dans la barre d’état.
 
 3
-00:00:11,084 --> 00:00:16,964
+00:00:11,330 --> 00:00:17,210
 La nouvelle icône à gauche ouvre la liste. Cochez une tâche et le compteur se met à jour.
 
 4
-00:00:17,929 --> 00:00:21,809
+00:00:18,175 --> 00:00:22,135
 De retour dans le terminal, on retrouve la même session.

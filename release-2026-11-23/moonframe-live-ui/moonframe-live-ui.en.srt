@@ -1,15 +1,15 @@
 1
-00:00:01,000 --> 00:00:05,520
+00:00:01,000 --> 00:00:05,680
 Let’s add a release checklist to this window while the terminal is open.
 
 2
-00:00:05,603 --> 00:00:11,083
+00:00:05,685 --> 00:00:11,325
 Save the Moonframe layout. A checklist counter appears in the status bar.
 
 3
-00:00:11,084 --> 00:00:17,924
+00:00:11,330 --> 00:00:18,170
 The new icon on the left opens the full checklist. Check off a task and watch the counter change.
 
 4
-00:00:17,929 --> 00:00:22,049
+00:00:18,175 --> 00:00:22,375
 Back in the terminal, the same session is still running.
