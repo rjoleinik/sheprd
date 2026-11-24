@@ -43,7 +43,7 @@ qrcode               = { default-features = false, version = "0.14.1" }
 ratex-layout         = "=0.1.15"
 ratex-parser         = "=0.1.15"
 ratex-render         = { features = ["embed-fonts"], version = "=0.1.15" }
-ratex-types          = "=0.1.15"
+ratex-types          = "=0.1.16"
 # User-written link-handler patterns; already in the lockfile through other crates.
 regex                = "1.13"
 base64               = "0.23.1"
